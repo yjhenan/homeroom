@@ -69,7 +69,8 @@ export const generatedRoutes: GeneratedRoute[] = [
     component: 'layout.base$view.student',
     meta: {
       title: 'student',
-      i18nKey: 'route.student'
+      i18nKey: 'route.student',
+      order: 2
     }
   }
 ];
