@@ -84,5 +84,16 @@ export const generatedRoutes: GeneratedRoute[] = [
       order: 2,
       icon: 'mdi:account-multiple-outline'
     }
+  },
+  {
+    name: 'student-detail',
+    path: '/student-detail/:id',
+    component: 'layout.base$view.student-detail',
+    props: true,
+    meta: {
+      title: 'student-detail',
+      i18nKey: 'route.student-detail',
+      hideInMenu: true
+    }
   }
 ];

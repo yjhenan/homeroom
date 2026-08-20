@@ -2,6 +2,7 @@
 import { computed, h, onMounted, ref } from 'vue';
 import type { DataTableColumns, DataTableSortState } from 'naive-ui';
 import { NButton, NTag } from 'naive-ui';
+import { useRouterPush } from '@/hooks/common/router';
 import { enrollmentStatusLabel, genderLabel } from '@/constants/business';
 import { repo } from '@/repo';
 import type { StudentInput, StudentWithEnrollment } from '@/repo';
@@ -18,6 +19,7 @@ defineOptions({
 
 const semesterStore = useSemesterStore();
 const studentStore = useStudentStore();
+const { routerPushByKey } = useRouterPush();
 
 const keyword = ref('');
 const statusFilter = ref<'all' | 'active' | 'transferred_out'>('all');
@@ -73,10 +75,15 @@ const columns: DataTableColumns<StudentWithEnrollment> = [
   {
     title: '操作',
     key: 'actions',
-    width: 130,
+    width: 180,
     align: 'center',
     render: row =>
       h('div', { class: 'flex justify-center gap-8px' }, [
+        h(
+          NButton,
+          { size: 'small', quaternary: true, type: 'primary', onClick: () => handleDetail(row) },
+          { default: () => '360' }
+        ),
         h(
           NButton,
           { size: 'small', quaternary: true, type: 'primary', onClick: () => handleEdit(row) },
@@ -131,6 +138,10 @@ function handleAdd() {
 function handleEdit(row: StudentWithEnrollment) {
   editingStudent.value = row;
   modalShow.value = true;
+}
+
+function handleDetail(row: StudentWithEnrollment) {
+  return routerPushByKey('student-detail', { params: { id: row.id } });
 }
 
 async function handleSave(input: StudentInput) {

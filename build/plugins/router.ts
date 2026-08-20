@@ -13,6 +13,9 @@ export function setupElegantRouter() {
 
       const constantRoutes: RouteKey[] = ['403', '404', '500'];
 
+      /** 参数路由不进侧栏菜单 */
+      const hideInMenuRoutes: RouteKey[] = ['student-detail'];
+
       /** 菜单排序（docs/03 模块顺序），无 order 的排最前 */
       const routeOrder: Partial<Record<RouteKey, number>> = {
         home: 1,
@@ -34,6 +37,10 @@ export function setupElegantRouter() {
 
       if (constantRoutes.includes(key)) {
         meta.constant = true;
+      }
+
+      if (hideInMenuRoutes.includes(key)) {
+        meta.hideInMenu = true;
       }
 
       if (routeOrder[key] !== undefined) {

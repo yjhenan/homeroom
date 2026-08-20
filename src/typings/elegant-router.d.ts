@@ -24,6 +24,7 @@ declare module "@elegant-router/types" {
     "home": "/home";
     "iframe-page": "/iframe-page/:url";
     "student": "/student";
+    "student-detail": "/student-detail/:id";
   };
 
   /**
@@ -62,6 +63,7 @@ declare module "@elegant-router/types" {
     | "home"
     | "iframe-page"
     | "student"
+    | "student-detail"
   >;
 
   /**
@@ -84,6 +86,7 @@ declare module "@elegant-router/types" {
     | "iframe-page"
     | "attendance"
     | "home"
+    | "student-detail"
     | "student"
   >;
 

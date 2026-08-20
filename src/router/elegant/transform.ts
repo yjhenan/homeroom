@@ -169,7 +169,8 @@ const routeMap: RouteMap = {
   "attendance": "/attendance",
   "home": "/home",
   "iframe-page": "/iframe-page/:url",
-  "student": "/student"
+  "student": "/student",
+  "student-detail": "/student-detail/:id"
 };
 
 /**
