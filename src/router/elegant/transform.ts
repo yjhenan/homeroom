@@ -167,7 +167,8 @@ const routeMap: RouteMap = {
   "404": "/404",
   "500": "/500",
   "home": "/home",
-  "iframe-page": "/iframe-page/:url"
+  "iframe-page": "/iframe-page/:url",
+  "student": "/student"
 };
 
 /**

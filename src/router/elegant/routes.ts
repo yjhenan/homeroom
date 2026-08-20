@@ -62,5 +62,14 @@ export const generatedRoutes: GeneratedRoute[] = [
       hideInMenu: true,
       keepAlive: true
     }
+  },
+  {
+    name: 'student',
+    path: '/student',
+    component: 'layout.base$view.student',
+    meta: {
+      title: 'student',
+      i18nKey: 'route.student'
+    }
   }
 ];

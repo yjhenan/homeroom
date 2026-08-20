@@ -22,6 +22,7 @@ declare module "@elegant-router/types" {
     "500": "/500";
     "home": "/home";
     "iframe-page": "/iframe-page/:url";
+    "student": "/student";
   };
 
   /**
@@ -58,6 +59,7 @@ declare module "@elegant-router/types" {
     | "500"
     | "home"
     | "iframe-page"
+    | "student"
   >;
 
   /**
@@ -79,6 +81,7 @@ declare module "@elegant-router/types" {
     | "500"
     | "iframe-page"
     | "home"
+    | "student"
   >;
 
   /**

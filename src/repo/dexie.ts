@@ -333,9 +333,7 @@ export class DexieClassRepo implements ClassRepo {
         await this.db.semesters.bulkPut(data.semesters);
         await this.db.students.bulkPut(data.students);
         await this.db.enrollments.bulkPut(data.enrollments);
-        await this.db.settings.bulkPut(
-          Object.entries(data.settings).map(([key, value]) => ({ key, value }))
-        );
+        await this.db.settings.bulkPut(Object.entries(data.settings).map(([key, value]) => ({ key, value })));
       }
     );
   }
