@@ -75,7 +75,8 @@ export async function parseStudentFile(file: File): Promise<ParseResult> {
     return { rows: [], errors: [{ row: 0, message: '文件中没有工作表' }] };
   }
 
-  const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false, raw: false });
+  // raw:true + 读取时 cellDates:true → 日期单元格以 Date 对象透传（raw:false 会变成 "2/2/11" 这类格式串）
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false, raw: true });
   // 去掉表头行
   const body = matrix.slice(1);
 
