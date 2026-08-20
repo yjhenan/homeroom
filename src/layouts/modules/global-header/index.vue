@@ -41,6 +41,11 @@ const { isFullscreen, toggle } = useFullscreen();
       <SemesterSwitch v-if="!appStore.isMobile" class="mr-8px" />
       <GlobalSearch v-if="themeStore.header.globalSearch.visible" />
       <FullScreen v-if="!appStore.isMobile" :full="isFullscreen" @click="toggle" />
+      <ThemeSchemaSwitch
+        :theme-schema="themeStore.themeScheme"
+        :is-dark="themeStore.darkMode"
+        @switch="themeStore.toggleThemeScheme"
+      />
       <ThemeButton />
     </div>
   </DarkModeContainer>
