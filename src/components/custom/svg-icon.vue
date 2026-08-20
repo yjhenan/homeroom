@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, useAttrs } from 'vue';
 import { Icon } from '@iconify/vue';
+import { offlineIcons } from '@/utils/offline-icons';
 
 defineOptions({ name: 'SvgIcon', inheritAttrs: false });
 
@@ -38,6 +39,9 @@ const symbolId = computed(() => {
 
 /** If localIcon is passed, render localIcon first */
 const renderLocalIcon = computed(() => props.localIcon || !props.icon);
+
+/** 离线注册表命中则构建期内联，未命中才走 iconify 在线 */
+const offlineIcon = computed(() => (props.icon ? offlineIcons[props.icon] : undefined));
 </script>
 
 <template>
@@ -47,7 +51,8 @@ const renderLocalIcon = computed(() => props.localIcon || !props.icon);
     </svg>
   </template>
   <template v-else>
-    <Icon v-if="icon" :icon="icon" v-bind="bindAttrs" />
+    <Component :is="offlineIcon" v-if="offlineIcon" v-bind="bindAttrs" />
+    <Icon v-else-if="icon" :icon="icon" v-bind="bindAttrs" />
   </template>
 </template>
 

@@ -5,13 +5,32 @@
  * 前置：pnpm dev 已在 http://localhost:9527
  */
 import { chromium } from 'playwright-core';
+import assert from 'node:assert';
 
 const EDGE = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const BASE = 'http://localhost:9527';
 
 async function main() {
   const browser = await chromium.launch({ executablePath: EDGE, headless: true });
-  const page = await (await browser.newContext({ viewport: { width: 1600, height: 900 } })).newPage();
+
+  // 0. 主题跟随系统：auto 模式下模拟系统深/浅，html.dark 应随之切换
+  for (const scheme of ['dark', 'light'] as const) {
+    const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, colorScheme: scheme });
+    const p = await ctx.newPage();
+    await p.goto(BASE, { waitUntil: 'networkidle' });
+    await p.waitForSelector('text=班级总览', { timeout: 20000 });
+    const isDark = await p.evaluate(() => document.documentElement.classList.contains('dark'));
+    assert.equal(isDark, scheme === 'dark', `系统=${scheme} 时深色状态应为 ${scheme === 'dark'}`);
+    console.log(`✓ 主题跟随系统：系统 ${scheme} → html.dark=${isDark}`);
+    if (scheme === 'light') {
+      await p.screenshot({ path: 'drive-home-light.png', fullPage: false });
+    }
+    await ctx.close();
+  }
+
+  const page = await (
+    await browser.newContext({ viewport: { width: 1600, height: 900 }, colorScheme: 'dark' })
+  ).newPage();
 
   const consoleErrors: string[] = [];
   page.on('console', msg => {
@@ -26,9 +45,6 @@ async function main() {
   const hasLogin = await page.locator('text=登录').count();
   console.log(`✓ 根路径直达首页（url=${url}，登录元素=${hasLogin}）`);
 
-  // 深色主题：html 上应有 dark 类
-  const isDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
-  console.log(`✓ 深色主题 html.dark=${isDark}`);
   await page.screenshot({ path: 'drive-home.png', fullPage: false });
 
   // 2. 侧栏「学生管理」→ 学生列表
@@ -52,6 +68,17 @@ async function main() {
   console.log('✓ 新增学生保存成功并出现在列表');
 
   await page.screenshot({ path: 'drive-student.png', fullPage: false });
+
+  // 3.5 主题抽屉：模式切换（浅色/深色/跟随系统）恢复且离线渲染
+  await page.click('header .n-button:has-text("主题")').catch(async () => {
+    // 主题按钮无文字时按位置兜底：顶栏最后一个图标按钮
+    await page.locator('header button').last().click();
+  });
+  await page.waitForSelector('text=主题模式', { timeout: 10000 });
+  const drawerVisible = await page.locator('.n-drawer').count();
+  console.log(`✓ 主题抽屉打开，模式切换区可见（drawer=${drawerVisible}）`);
+  await page.screenshot({ path: 'drive-theme-drawer.png', fullPage: false });
+  await page.keyboard.press('Escape');
 
   // 4. 刷新留存
   await page.reload({ waitUntil: 'networkidle' });
