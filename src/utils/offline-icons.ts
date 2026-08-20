@@ -9,6 +9,8 @@ import type { Component } from 'vue';
 import IconMenu from '~icons/mdi/menu';
 import IconMonitorDashboard from '~icons/mdi/monitor-dashboard';
 import IconSchoolOutline from '~icons/mdi/school-outline';
+import IconAccountMultipleOutline from '~icons/mdi/account-multiple-outline';
+import IconCalendarCheckOutline from '~icons/mdi/calendar-check-outline';
 import IconPin from '~icons/mdi/pin';
 import IconPinOff from '~icons/mdi/pin-off';
 import IconPinOutline from '~icons/mdi/pin-outline';
@@ -30,6 +32,8 @@ export const offlineIcons: Record<string, Component> = {
   'mdi:menu': IconMenu,
   'mdi:monitor-dashboard': IconMonitorDashboard,
   'mdi:school-outline': IconSchoolOutline,
+  'mdi:account-multiple-outline': IconAccountMultipleOutline,
+  'mdi:calendar-check-outline': IconCalendarCheckOutline,
   'mdi:pin': IconPin,
   'mdi:pin-off': IconPinOff,
   'mdi:pin-outline': IconPinOutline,

@@ -14,12 +14,23 @@ export const useSemesterStore = defineStore(SetupStoreId.Semester, () => {
   const activeSemesterId = ref<string | null>(null);
   const initialized = ref(false);
 
+  /** 进行中的初始化 promise：header 切换器与页面 onMounted 可能同一 tick 并发调用，防重复建默认学期 */
+  let initPromise: Promise<void> | null = null;
+
   const activeSemester = computed(() => semesters.value.find(s => s.id === activeSemesterId.value) ?? null);
 
-  /** 应用启动时调用；空库自动创建默认学期 */
-  async function initSemesters() {
-    if (initialized.value) return;
+  /** 应用启动时调用；空库自动创建默认学期（并发安全） */
+  function initSemesters(): Promise<void> {
+    if (!initPromise) {
+      initPromise = doInit().catch(err => {
+        initPromise = null; // 失败允许重试
+        throw err;
+      });
+    }
+    return initPromise;
+  }
 
+  async function doInit() {
     let list = await repo.listSemesters();
 
     if (list.length === 0) {

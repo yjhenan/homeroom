@@ -328,7 +328,9 @@ export class DexieClassRepo implements ClassRepo {
       rows = rows.filter(row => statuses.includes(row.status));
     }
 
-    return rows.sort((a, b) => (a.date === b.date ? a.student_id.localeCompare(b.student_id) : a.date.localeCompare(b.date)));
+    return rows.sort((a, b) =>
+      a.date === b.date ? a.student_id.localeCompare(b.student_id) : a.date.localeCompare(b.date)
+    );
   }
 
   private async assertStudentNoUnique(studentNo: string, excludeId?: string): Promise<void> {

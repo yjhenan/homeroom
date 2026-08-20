@@ -40,6 +40,17 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'attendance',
+    path: '/attendance',
+    component: 'layout.base$view.attendance',
+    meta: {
+      title: 'attendance',
+      i18nKey: 'route.attendance',
+      order: 3,
+      icon: 'mdi:calendar-check-outline'
+    }
+  },
+  {
     name: 'home',
     path: '/home',
     component: 'layout.base$view.home',
@@ -70,7 +81,8 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'student',
       i18nKey: 'route.student',
-      order: 2
+      order: 2,
+      icon: 'mdi:account-multiple-outline'
     }
   }
 ];

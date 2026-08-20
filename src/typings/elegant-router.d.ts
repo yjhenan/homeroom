@@ -20,6 +20,7 @@ declare module "@elegant-router/types" {
     "403": "/403";
     "404": "/404";
     "500": "/500";
+    "attendance": "/attendance";
     "home": "/home";
     "iframe-page": "/iframe-page/:url";
     "student": "/student";
@@ -57,6 +58,7 @@ declare module "@elegant-router/types" {
     | "403"
     | "404"
     | "500"
+    | "attendance"
     | "home"
     | "iframe-page"
     | "student"
@@ -80,6 +82,7 @@ declare module "@elegant-router/types" {
     | "404"
     | "500"
     | "iframe-page"
+    | "attendance"
     | "home"
     | "student"
   >;

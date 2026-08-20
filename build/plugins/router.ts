@@ -16,7 +16,15 @@ export function setupElegantRouter() {
       /** 菜单排序（docs/03 模块顺序），无 order 的排最前 */
       const routeOrder: Partial<Record<RouteKey, number>> = {
         home: 1,
-        student: 2
+        student: 2,
+        attendance: 3
+      };
+
+      /** 菜单图标（须同步登记 src/utils/offline-icons.ts） */
+      const routeIcon: Partial<Record<RouteKey, string>> = {
+        home: 'mdi:monitor-dashboard',
+        student: 'mdi:account-multiple-outline',
+        attendance: 'mdi:calendar-check-outline'
       };
 
       const meta: Partial<RouteMeta> = {
@@ -30,6 +38,10 @@ export function setupElegantRouter() {
 
       if (routeOrder[key] !== undefined) {
         meta.order = routeOrder[key];
+      }
+
+      if (routeIcon[key]) {
+        meta.icon = routeIcon[key];
       }
 
       return meta;
