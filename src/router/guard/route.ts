@@ -1,9 +1,6 @@
-import type { LocationQueryRaw, RouteLocationNormalized, RouteLocationRaw, Router } from 'vue-router';
+import type { RouteLocationNormalized, RouteLocationRaw, Router } from 'vue-router';
 import type { RouteKey, RoutePath } from '@elegant-router/types';
-import { useAuthStore } from '@/store/modules/auth';
 import { useRouteStore } from '@/store/modules/route';
-import { localStg } from '@/utils/storage';
-import { getRouteName } from '@/router/elegant/transform';
 
 /**
  * create route guard
@@ -18,40 +15,6 @@ export function createRouteGuard(router: Router) {
       return location;
     }
 
-    const authStore = useAuthStore();
-
-    const rootRoute: RouteKey = 'root';
-    const loginRoute: RouteKey = 'login';
-    const noAuthorizationRoute: RouteKey = '403';
-
-    const isLogin = Boolean(localStg.get('token'));
-    const needLogin = !to.meta.constant;
-    const routeRoles = to.meta.roles || [];
-
-    const hasRole = authStore.userInfo.roles.some(role => routeRoles.includes(role));
-    const hasAuth = authStore.isStaticSuper || !routeRoles.length || hasRole;
-
-    // if it is login route when logged in, then switch to the root page
-    if (to.name === loginRoute && isLogin) {
-      return { name: rootRoute };
-    }
-
-    // if the route does not need login, then it is allowed to access directly
-    if (!needLogin) {
-      return handleRouteSwitch(to, from);
-    }
-
-    // the route need login but the user is not logged in, then switch to the login page
-    if (!isLogin) {
-      return { name: loginRoute, query: { redirect: to.fullPath } };
-    }
-
-    // if the user is logged in but does not have authorization, then switch to the 403 page
-    if (!hasAuth) {
-      return { name: noAuthorizationRoute };
-    }
-
-    // switch route normally
     return handleRouteSwitch(to, from);
   });
 }
@@ -84,28 +47,6 @@ async function initRoute(to: RouteLocationNormalized): Promise<RouteLocationRaw 
     return location;
   }
 
-  const isLogin = Boolean(localStg.get('token'));
-
-  if (!isLogin) {
-    // if the user is not logged in and the route is a constant route but not the "not-found" route, then it is allowed to access.
-    if (to.meta.constant && !isNotFoundRoute) {
-      routeStore.onRouteSwitchWhenNotLoggedIn();
-
-      return null;
-    }
-
-    // if the user is not logged in, then switch to the login page
-    const loginRoute: RouteKey = 'login';
-    const query = getRouteQueryOfLoginRoute(to, routeStore.routeHome);
-
-    const location: RouteLocationRaw = {
-      name: loginRoute,
-      query
-    };
-
-    return location;
-  }
-
   if (!routeStore.isInitAuthRoute) {
     // initialize the auth route
     await routeStore.initAuthRoute();
@@ -127,8 +68,6 @@ async function initRoute(to: RouteLocationNormalized): Promise<RouteLocationRaw 
     }
   }
 
-  routeStore.onRouteSwitchWhenLoggedIn();
-
   // the auth route is initialized
   // it is not the "not-found" route, then it is allowed to access
   if (!isNotFoundRoute) {
@@ -136,10 +75,11 @@ async function initRoute(to: RouteLocationNormalized): Promise<RouteLocationRaw 
   }
 
   // it is captured by the "not-found" route, then check whether the route exists
-  const exist = await routeStore.getIsAuthRouteExist(to.path as RoutePath);
-  const noPermissionRoute: RouteKey = '403';
+  const exist = routeStore.getIsAuthRouteExist(to.path as RoutePath);
 
   if (exist) {
+    const noPermissionRoute: RouteKey = '403';
+
     const location: RouteLocationRaw = {
       name: noPermissionRoute
     };
@@ -157,21 +97,4 @@ function handleRouteSwitch(to: RouteLocationNormalized, from: RouteLocationNorma
 
     return { path: from.fullPath, replace: true, query: from.query, hash: to.hash };
   }
-}
-
-function getRouteQueryOfLoginRoute(to: RouteLocationNormalized, routeHome: RouteKey) {
-  const loginRoute: RouteKey = 'login';
-  const redirect = to.fullPath;
-  const [redirectPath, redirectQuery] = redirect.split('?');
-  const redirectName = getRouteName(redirectPath as RoutePath);
-
-  const isRedirectHome = routeHome === redirectName;
-
-  const query: LocationQueryRaw = to.name !== loginRoute && !isRedirectHome ? { redirect } : {};
-
-  if (isRedirectHome && redirectQuery) {
-    query.redirect = `/?${redirectQuery}`;
-  }
-
-  return query;
 }

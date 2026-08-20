@@ -3,7 +3,6 @@ import type { Ref } from 'vue';
 import type { PaginationProps } from 'naive-ui';
 import { useBoolean, useTable } from '@sa/hooks';
 import type { PaginationData, TableColumnCheck, UseTableOptions } from '@sa/hooks';
-import type { FlatResponseData } from '@sa/axios';
 import { jsonClone } from '@sa/utils';
 import { useAppStore } from '@/store/modules/app';
 import { $t } from '@/locales';
@@ -230,9 +229,10 @@ export function useTableOperate<TableData>(
   };
 }
 
-export function defaultTransform<ApiData>(
-  response: FlatResponseData<any, Api.Common.PaginatingQueryRecord<ApiData>>
-): PaginationData<ApiData> {
+export function defaultTransform<ApiData>(response: {
+  data: Api.Common.PaginatingQueryRecord<ApiData>;
+  error: unknown;
+}): PaginationData<ApiData> {
   const { data, error } = response;
 
   if (!error) {

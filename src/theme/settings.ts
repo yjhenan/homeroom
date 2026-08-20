@@ -1,10 +1,10 @@
 /** Default theme settings */
 export const themeSettings: App.Theme.ThemeSetting = {
-  themeScheme: 'light',
+  themeScheme: 'dark',
   grayscale: false,
   colourWeakness: false,
   recommendColor: false,
-  themeColor: '#646cff',
+  themeColor: '#2563EB',
   themeRadius: 6,
   otherColor: {
     info: '#2080f0',
@@ -28,7 +28,7 @@ export const themeSettings: App.Theme.ThemeSetting = {
       showIcon: true
     },
     multilingual: {
-      visible: true
+      visible: false
     },
     globalSearch: {
       visible: true
@@ -59,7 +59,7 @@ export const themeSettings: App.Theme.ThemeSetting = {
   },
   watermark: {
     visible: false,
-    text: 'SoybeanAdmin',
+    text: 'homeroom',
     enableUserName: false,
     enableTime: false,
     timeFormat: 'YYYY-MM-DD HH:mm'
@@ -80,8 +80,8 @@ export const themeSettings: App.Theme.ThemeSetting = {
     },
     dark: {
       colors: {
-        container: 'rgb(28, 28, 28)',
-        layout: 'rgb(18, 18, 18)',
+        container: 'rgb(30, 36, 51)',
+        layout: 'rgb(18, 22, 33)',
         'base-text': 'rgb(224, 224, 224)'
       }
     }

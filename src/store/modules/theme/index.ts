@@ -5,7 +5,6 @@ import { defineStore } from 'pinia';
 import { getPaletteColorByNumber } from '@sa/color';
 import { localStg } from '@/utils/storage';
 import { SetupStoreId } from '@/enum';
-import { useAuthStore } from '../auth';
 import {
   addThemeVarsToGlobal,
   createThemeToken,
@@ -19,7 +18,6 @@ import {
 export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
   const scope = effectScope();
   const osTheme = usePreferredColorScheme();
-  const authStore = useAuthStore();
 
   /** Theme settings */
   const settings: Ref<App.Theme.ThemeSetting> = ref(initThemeSettings());
@@ -75,10 +73,6 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
   /** Watermark content */
   const watermarkContent = computed(() => {
     const { watermark } = settings.value;
-
-    if (watermark.enableUserName && authStore.userInfo.userName) {
-      return authStore.userInfo.userName;
-    }
 
     if (watermark.enableTime) {
       return formattedWatermarkTime.value;
