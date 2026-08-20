@@ -154,7 +154,7 @@ async function handleSave(input: StudentInput) {
 
 async function handleDelete(row: StudentWithEnrollment) {
   const counts = await studentStore.countRecords(row.id);
-  const detail = `将删除「${row.name}」及其 ${counts.enrollments} 条名册记录，历史考勤、成绩等数据将一并丢失且不可恢复。`;
+  const detail = `将删除「${row.name}」及其 ${counts.enrollments} 条名册记录、${counts.attendance} 条考勤记录，历史成绩等数据将一并丢失且不可恢复。`;
   window.$dialog?.warning({
     title: '确认删除学生',
     content: detail,

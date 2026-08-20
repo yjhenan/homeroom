@@ -94,11 +94,42 @@ async function main() {
   assert.equal(await repo.getSetting('不存在'), null);
   console.log('✓ 设置键值');
 
-  // ---- 备份往返 ----
+  // ---- 考勤：按日保存/查询/全量替换 ----
+  const roster = await repo.listStudents(sem.id);
+  const dayRows = roster.slice(0, 40).map((s, i) => ({
+    student_id: s.id,
+    status: (['present', 'late', 'sick', 'personal', 'absent', 'early_leave'] as const)[i % 6],
+    ...(i % 6 !== 0 ? { remark: `备注${i}` } : {})
+  }));
+  await repo.saveAttendanceForDate(sem.id, '2026-09-01', dayRows);
+
+  let dayList = await repo.getAttendanceByDate(sem.id, '2026-09-01');
+  assert.equal(dayList.length, 40);
+  assert.equal(dayList.filter(r => r.status === 'late').length, 7);
+
+  // 重存同一天 → 全量替换不叠加
+  await repo.saveAttendanceForDate(sem.id, '2026-09-01', dayRows.slice(0, 5));
+  dayList = await repo.getAttendanceByDate(sem.id, '2026-09-01');
+  assert.equal(dayList.length, 5);
+  console.log('✓ 考勤按日保存与全量替换');
+
+  // 范围/学生/状态查询
+  await repo.saveAttendanceForDate(sem.id, '2026-09-02', dayRows.slice(0, 10));
+  await repo.saveAttendanceForDate(sem2.id, '2027-03-01', dayRows.slice(3, 6)); // 另一学期（日期不重叠，避开唯一索引）
+  const range = await repo.queryAttendance({ semesterId: sem.id, from: '2026-09-01', to: '2026-09-30' });
+  assert.equal(range.length, 15); // 5 + 10，另一学期不算
+  const onlyLate = await repo.queryAttendance({ semesterId: sem.id, statuses: ['late'] });
+  assert.ok(onlyLate.length > 0 && onlyLate.every(r => r.status === 'late'));
+  const oneStudent = await repo.queryAttendance({ semesterId: sem.id, studentId: dayRows[0].student_id });
+  assert.equal(oneStudent.length, 2); // 两天各一条
+  console.log('✓ 考勤查询：范围/状态/学生/学期隔离');
+
+  // ---- 备份往返（含 attendance）----
   const backup = await repo.exportAll();
   assert.equal(backup.version, 1);
   assert.equal(backup.students.length, 41);
   assert.equal(backup.enrollments.length, 44);
+  assert.equal(backup.attendance?.length, 18);
 
   const repo2 = createRepo(); // 新实例（同库），先清空再导入验证全量替换
   const fresh = await repo2.exportAll();
@@ -107,13 +138,24 @@ async function main() {
   const restored = await repo2.exportAll();
   assert.deepEqual(restored, { ...backup, exportedAt: restored.exportedAt });
   assert.equal((await repo2.listStudents(sem.id)).length, 41);
-  console.log('✓ JSON 全量导出/导入往返一致');
+  assert.equal((await repo2.getAttendanceByDate(sem.id, '2026-09-02')).length, 10);
+  console.log('✓ JSON 全量导出/导入往返一致（含 attendance）');
 
-  // ---- 删除学生硬删名册 ----
-  const removed = await repo.deleteStudent(stu.id);
-  assert.equal(removed, 1); // 仅 sem 一条名册（sem2 挂的是 S001-S003）
+  // M1 老备份（无 attendance 字段）可导入
+  await repo2.importAll({ ...JSON.parse(JSON.stringify(backup)), attendance: undefined });
+  assert.equal((await repo2.getAttendanceByDate(sem.id, '2026-09-02')).length, 0);
+  console.log('✓ 兼容 M1 老备份（缺 attendance 视为空）');
+  // 还原数据
+  await repo2.importAll(JSON.parse(JSON.stringify(backup)));
+
+  // ---- 删除学生硬删名册与考勤 ----
+  const countsBefore = await repo.countStudentRecords(dayRows[0].student_id);
+  assert.equal(countsBefore.attendance, 2);
+  const removed = await repo.deleteStudent(dayRows[0].student_id);
+  assert.equal(removed.enrollments, 1); // 仅 sem 一条名册（sem2 挂的是 S001-S003）
+  assert.equal(removed.attendance, 2); // sem 两天各一条
   assert.equal((await repo.listStudents()).length, 40);
-  console.log('✓ 硬删学生连带名册');
+  console.log('✓ 硬删学生连带名册与考勤');
 
   await assert.rejects(() => repo.importAll({ version: 2 } as never), /不支持的备份版本/);
   console.log('✓ 备份版本校验');

@@ -81,6 +81,36 @@ export interface ImportResult {
   skipped: number;
 }
 
+/** 考勤状态（全量记录策略：当天每生一行，默认 present） */
+export type AttendanceStatus = 'present' | 'late' | 'sick' | 'personal' | 'absent' | 'early_leave';
+
+/** 考勤记录 */
+export interface Attendance {
+  id: string;
+  semester_id: string;
+  student_id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  status: AttendanceStatus;
+  remark?: string;
+}
+
+/** 单生考勤入参（semester/date 由保存动作统一携带） */
+export interface AttendanceInput {
+  student_id: string;
+  status: AttendanceStatus;
+  remark?: string;
+}
+
+/** 考勤查询条件 */
+export interface AttendanceQuery {
+  semesterId: string;
+  from?: string;
+  to?: string;
+  studentId?: string;
+  statuses?: AttendanceStatus[];
+}
+
 /** 全量备份 JSON（web→桌面阶段的迁移桥，顶层 version 只增不改） */
 export interface BackupFile {
   version: 1;
@@ -88,6 +118,8 @@ export interface BackupFile {
   semesters: Semester[];
   students: Student[];
   enrollments: Enrollment[];
+  /** M2 起存在；导入时容忍缺失（M1 老备份） */
+  attendance?: Attendance[];
   settings: Record<string, unknown>;
 }
 
@@ -111,12 +143,20 @@ export interface ClassRepo {
   /** 新增学生并挂到指定学期名册 */
   createStudent(input: StudentInput, semesterId: string): Promise<Student>;
   updateStudent(id: string, patch: Partial<StudentInput>): Promise<Student>;
-  /** 硬删：学生 + 其全部名册记录；返回删除的名册条数（供 UI 提示影响范围） */
-  deleteStudent(id: string): Promise<number>;
+  /** 硬删：学生 + 其全部名册与考勤记录；返回删除条数（供 UI 提示影响范围） */
+  deleteStudent(id: string): Promise<{ enrollments: number; attendance: number }>;
   /** Excel 导入：按学号匹配，冲突时按策略覆盖或跳过；新学生自动挂入指定学期名册 */
   importStudents(rows: StudentInput[], semesterId: string, strategy: ImportConflictStrategy): Promise<ImportResult>;
-  /** 删除提示用：统计某学生历史关联记录数（M1 仅名册，M2/M3 扩展考勤/成绩等） */
-  countStudentRecords(studentId: string): Promise<{ enrollments: number }>;
+  /** 删除提示用：统计某学生历史关联记录数（M3 再扩展成绩/德育/值日） */
+  countStudentRecords(studentId: string): Promise<{ enrollments: number; attendance: number }>;
+
+  // ---- 考勤 ----
+  /** 某学期某天的全部考勤（未录返回空数组） */
+  getAttendanceByDate(semesterId: string, date: string): Promise<Attendance[]>;
+  /** 保存某天考勤：全量替换该 (semester, date) 的记录 */
+  saveAttendanceForDate(semesterId: string, date: string, rows: AttendanceInput[]): Promise<void>;
+  /** 按条件查询（日期范围/学生/状态） */
+  queryAttendance(query: AttendanceQuery): Promise<Attendance[]>;
 
   // ---- 名册 ----
   listEnrollments(semesterId: string): Promise<Enrollment[]>;

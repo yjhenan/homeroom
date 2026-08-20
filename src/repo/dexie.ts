@@ -2,6 +2,9 @@ import Dexie from 'dexie';
 import type { Table } from 'dexie';
 import { nanoid } from 'nanoid';
 import type {
+  Attendance,
+  AttendanceInput,
+  AttendanceQuery,
   BackupFile,
   ClassRepo,
   Enrollment,
@@ -38,6 +41,7 @@ class HomeroomDB extends Dexie {
   semesters!: Table<Semester, string>;
   students!: Table<Student, string>;
   enrollments!: Table<Enrollment, string>;
+  attendance!: Table<Attendance, string>;
   settings!: Table<SettingRow, string>;
 
   constructor() {
@@ -51,6 +55,17 @@ class HomeroomDB extends Dexie {
       enrollments: 'id, &[semester_id+student_id], semester_id, student_id, status',
       settings: 'key'
     });
+
+    // v2 (M2)：attendance 考勤表；&(student_id+date) 唯一（当天每生一行）
+    // date 为 YYYY-MM-DD 字符串，字典序即时间序，直接 between 范围查
+    this.version(2)
+      .stores({
+        attendance: 'id, &[student_id+date], [semester_id+date], semester_id, student_id, date, status'
+      })
+      .upgrade(() => {
+        // 新增表无需数据迁移，保留空 upgrade 以显式声明版本意图
+        return Promise.resolve();
+      });
   }
 }
 
@@ -183,11 +198,12 @@ export class DexieClassRepo implements ClassRepo {
     return next;
   }
 
-  async deleteStudent(id: string): Promise<number> {
-    return this.db.transaction('rw', this.db.students, this.db.enrollments, async () => {
-      const removed = await this.db.enrollments.where('student_id').equals(id).delete();
+  async deleteStudent(id: string): Promise<{ enrollments: number; attendance: number }> {
+    return this.db.transaction('rw', this.db.students, this.db.enrollments, this.db.attendance, async () => {
+      const removedEnrollments = await this.db.enrollments.where('student_id').equals(id).delete();
+      const removedAttendance = await this.db.attendance.where('student_id').equals(id).delete();
       await this.db.students.delete(id);
-      return removed;
+      return { enrollments: removedEnrollments, attendance: removedAttendance };
     });
   }
 
@@ -258,8 +274,61 @@ export class DexieClassRepo implements ClassRepo {
     return result;
   }
 
-  async countStudentRecords(studentId: string): Promise<{ enrollments: number }> {
-    return { enrollments: await this.db.enrollments.where('student_id').equals(studentId).count() };
+  async countStudentRecords(studentId: string): Promise<{ enrollments: number; attendance: number }> {
+    return {
+      enrollments: await this.db.enrollments.where('student_id').equals(studentId).count(),
+      attendance: await this.db.attendance.where('student_id').equals(studentId).count()
+    };
+  }
+
+  // ---- 考勤 ----
+
+  async getAttendanceByDate(semesterId: string, date: string): Promise<Attendance[]> {
+    return this.db.attendance.where('[semester_id+date]').equals([semesterId, date]).toArray();
+  }
+
+  async saveAttendanceForDate(semesterId: string, date: string, rows: AttendanceInput[]): Promise<void> {
+    await this.db.transaction('rw', this.db.attendance, async () => {
+      await this.db.attendance.where('[semester_id+date]').equals([semesterId, date]).delete();
+
+      const records: Attendance[] = rows.map(input => ({
+        id: genId(),
+        semester_id: semesterId,
+        student_id: input.student_id,
+        date,
+        status: input.status,
+        ...(input.remark ? { remark: input.remark } : {})
+      }));
+      if (records.length) {
+        await this.db.attendance.bulkAdd(records);
+      }
+    });
+  }
+
+  async queryAttendance(query: AttendanceQuery): Promise<Attendance[]> {
+    const { semesterId, from, to, studentId, statuses } = query;
+
+    let collection;
+    if (from && to) {
+      collection = this.db.attendance.where('date').between(from, to, true, true);
+    } else if (from) {
+      collection = this.db.attendance.where('date').aboveOrEqual(from);
+    } else if (to) {
+      collection = this.db.attendance.where('date').belowOrEqual(to);
+    } else {
+      collection = this.db.attendance.toCollection();
+    }
+
+    let rows = await collection.filter(row => row.semester_id === semesterId).toArray();
+
+    if (studentId) {
+      rows = rows.filter(row => row.student_id === studentId);
+    }
+    if (statuses && statuses.length) {
+      rows = rows.filter(row => statuses.includes(row.status));
+    }
+
+    return rows.sort((a, b) => (a.date === b.date ? a.student_id.localeCompare(b.student_id) : a.date.localeCompare(b.date)));
   }
 
   private async assertStudentNoUnique(studentNo: string, excludeId?: string): Promise<void> {
@@ -293,10 +362,11 @@ export class DexieClassRepo implements ClassRepo {
   // ---- 备份 ----
 
   async exportAll(): Promise<BackupFile> {
-    const [semesters, students, enrollments, settingRows] = await Promise.all([
+    const [semesters, students, enrollments, attendance, settingRows] = await Promise.all([
       this.db.semesters.toArray(),
       this.db.students.toArray(),
       this.db.enrollments.toArray(),
+      this.db.attendance.toArray(),
       this.db.settings.toArray()
     ]);
 
@@ -311,6 +381,7 @@ export class DexieClassRepo implements ClassRepo {
       semesters,
       students,
       enrollments,
+      attendance,
       settings
     };
   }
@@ -322,17 +393,22 @@ export class DexieClassRepo implements ClassRepo {
 
     await this.db.transaction(
       'rw',
-      [this.db.semesters, this.db.students, this.db.enrollments, this.db.settings],
+      [this.db.semesters, this.db.students, this.db.enrollments, this.db.attendance, this.db.settings],
       async () => {
         await Promise.all([
           this.db.semesters.clear(),
           this.db.students.clear(),
           this.db.enrollments.clear(),
+          this.db.attendance.clear(),
           this.db.settings.clear()
         ]);
         await this.db.semesters.bulkPut(data.semesters);
         await this.db.students.bulkPut(data.students);
         await this.db.enrollments.bulkPut(data.enrollments);
+        // M1 老备份无 attendance 字段
+        if (data.attendance?.length) {
+          await this.db.attendance.bulkPut(data.attendance);
+        }
         await this.db.settings.bulkPut(Object.entries(data.settings).map(([key, value]) => ({ key, value })));
       }
     );
