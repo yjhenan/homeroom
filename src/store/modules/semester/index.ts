@@ -56,6 +56,18 @@ export const useSemesterStore = defineStore(SetupStoreId.Semester, () => {
     initialized.value = true;
   }
 
+  /** 强制从库里刷新学期列表（归档等变更后调用） */
+  async function refreshSemesters() {
+    const list = await repo.listSemesters();
+    semesters.value = list;
+    const active = list.find(x => x.is_active);
+    if (active) {
+      activeSemesterId.value = active.id;
+    } else if (!list.some(x => x.id === activeSemesterId.value)) {
+      activeSemesterId.value = list[list.length - 1]?.id ?? null;
+    }
+  }
+
   /** 切换当前学期 */
   async function switchSemester(id: string) {
     if (id === activeSemesterId.value) return;
@@ -73,6 +85,7 @@ export const useSemesterStore = defineStore(SetupStoreId.Semester, () => {
     activeSemester,
     initialized,
     initSemesters,
+    refreshSemesters,
     switchSemester
   };
 });

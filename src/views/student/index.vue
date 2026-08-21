@@ -8,7 +8,6 @@ import { repo } from '@/repo';
 import type { StudentInput, StudentWithEnrollment } from '@/repo';
 import { useSemesterStore } from '@/store/modules/semester';
 import { useStudentStore } from '@/store/modules/student';
-import { downloadBackup, readBackupFile } from '@/utils/backup';
 import { exportStudents } from '@/utils/excel';
 import StudentModal from './modules/student-modal.vue';
 import ImportModal from './modules/import-modal.vue';
@@ -27,7 +26,6 @@ const modalShow = ref(false);
 const editingStudent = ref<StudentWithEnrollment | null>(null);
 const saving = ref(false);
 const importShow = ref(false);
-const backupInputRef = ref<HTMLInputElement | null>(null);
 
 const semesterName = computed(() => semesterStore.activeSemester?.name ?? '');
 
@@ -104,19 +102,6 @@ const statusOptions = [
   { label: '转出', value: 'transferred_out' }
 ];
 
-const backupOptions = [
-  { label: 'JSON 备份导出', key: 'export' },
-  { label: 'JSON 备份导入', key: 'import' }
-];
-
-function handleBackupSelect(key: string | number) {
-  if (key === 'export') {
-    handleBackupExport();
-  } else if (key === 'import') {
-    handleBackupImportClick();
-  }
-}
-
 async function refresh() {
   if (semesterStore.activeSemesterId) {
     await studentStore.loadStudents(semesterStore.activeSemesterId);
@@ -191,50 +176,6 @@ function handleExport() {
   exportStudents(filteredStudents.value);
   window.$message?.success(`已导出 ${filteredStudents.value.length} 条`);
 }
-
-async function handleBackupExport() {
-  const data = await repo.exportAll();
-  downloadBackup(data);
-  await repo.setSetting('lastBackupAt', data.exportedAt);
-  window.$message?.success('备份已下载');
-}
-
-function handleBackupImportClick() {
-  backupInputRef.value?.click();
-}
-
-async function handleBackupImportChange(e: Event) {
-  const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file) return;
-
-  let data;
-  try {
-    data = await readBackupFile(file);
-  } catch (err) {
-    window.$message?.error(err instanceof Error ? err.message : '备份文件读取失败');
-    return;
-  }
-
-  window.$dialog?.warning({
-    title: '导入备份将覆盖全部数据',
-    content: '确认后会先自动下载一份当前数据作留底，然后用备份文件内容整体替换。是否继续？',
-    positiveText: '备份并导入',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      // 硬规则：导入前强制先导出当前数据
-      const current = await repo.exportAll();
-      downloadBackup(current);
-      await repo.importAll(data);
-      await semesterStore.initSemesters();
-      if (semesterStore.activeSemesterId) {
-        await studentStore.loadStudents(semesterStore.activeSemesterId);
-      }
-      window.$message?.success('备份已导入');
-    }
-  });
-}
 </script>
 
 <template>
@@ -248,9 +189,6 @@ async function handleBackupImportChange(e: Event) {
           <NSelect v-model:value="statusFilter" :options="statusOptions" class="w-120px" />
           <NButton @click="importShow = true">导入</NButton>
           <NButton :disabled="filteredStudents.length === 0" @click="handleExport">导出</NButton>
-          <NDropdown :options="backupOptions" @select="handleBackupSelect">
-            <NButton>数据</NButton>
-          </NDropdown>
           <NButton type="primary" @click="handleAdd">新增学生</NButton>
         </div>
       </div>
@@ -265,7 +203,6 @@ async function handleBackupImportChange(e: Event) {
     </NCard>
     <StudentModal v-model:show="modalShow" :student="editingStudent" :saving="saving" @save="handleSave" />
     <ImportModal v-model:show="importShow" :semester-id="semesterStore.activeSemesterId ?? ''" @refreshed="refresh" />
-    <input ref="backupInputRef" type="file" accept=".json" class="hidden" @change="handleBackupImportChange" />
   </NSpace>
 </template>
 
