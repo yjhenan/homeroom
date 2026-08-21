@@ -51,6 +51,39 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'discipline',
+    path: '/discipline',
+    component: 'layout.base$view.discipline',
+    meta: {
+      title: 'discipline',
+      i18nKey: 'route.discipline',
+      order: 5,
+      icon: 'mdi:hand-coin-outline'
+    }
+  },
+  {
+    name: 'document',
+    path: '/document',
+    component: 'layout.base$view.document',
+    meta: {
+      title: 'document',
+      i18nKey: 'route.document',
+      order: 7,
+      icon: 'mdi:folder-open-outline'
+    }
+  },
+  {
+    name: 'duty',
+    path: '/duty',
+    component: 'layout.base$view.duty',
+    meta: {
+      title: 'duty',
+      i18nKey: 'route.duty',
+      order: 6,
+      icon: 'mdi:broom'
+    }
+  },
+  {
     name: 'home',
     path: '/home',
     component: 'layout.base$view.home',
@@ -72,6 +105,28 @@ export const generatedRoutes: GeneratedRoute[] = [
       constant: true,
       hideInMenu: true,
       keepAlive: true
+    }
+  },
+  {
+    name: 'score',
+    path: '/score',
+    component: 'layout.base$view.score',
+    meta: {
+      title: 'score',
+      i18nKey: 'route.score',
+      order: 4,
+      icon: 'mdi:chart-box-outline'
+    }
+  },
+  {
+    name: 'setting',
+    path: '/setting',
+    component: 'layout.base$view.setting',
+    meta: {
+      title: 'setting',
+      i18nKey: 'route.setting',
+      order: 8,
+      icon: 'mdi:cog-outline'
     }
   },
   {

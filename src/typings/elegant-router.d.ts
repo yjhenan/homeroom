@@ -21,8 +21,13 @@ declare module "@elegant-router/types" {
     "404": "/404";
     "500": "/500";
     "attendance": "/attendance";
+    "discipline": "/discipline";
+    "document": "/document";
+    "duty": "/duty";
     "home": "/home";
     "iframe-page": "/iframe-page/:url";
+    "score": "/score";
+    "setting": "/setting";
     "student": "/student";
     "student-detail": "/student-detail/:id";
   };
@@ -60,8 +65,13 @@ declare module "@elegant-router/types" {
     | "404"
     | "500"
     | "attendance"
+    | "discipline"
+    | "document"
+    | "duty"
     | "home"
     | "iframe-page"
+    | "score"
+    | "setting"
     | "student"
     | "student-detail"
   >;
@@ -85,7 +95,12 @@ declare module "@elegant-router/types" {
     | "500"
     | "iframe-page"
     | "attendance"
+    | "discipline"
+    | "document"
+    | "duty"
     | "home"
+    | "score"
+    | "setting"
     | "student-detail"
     | "student"
   >;

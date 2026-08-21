@@ -1,4 +1,4 @@
-import type { AttendanceStatus, Enrollment, Gender, Student } from '@/repo';
+import type { AttendanceStatus, Enrollment, ExamType, Gender, Student } from '@/repo';
 
 /** 枚举中文标签（UI 文案层；DTO 值本身为英文枚举，便于排序与导出） */
 
@@ -32,6 +32,21 @@ export const attendanceTagType: Record<AttendanceStatus, 'success' | 'warning' |
   absent: 'error',
   early_leave: 'warning'
 };
+
+export const examTypeLabel: Record<ExamType, string> = {
+  daily: '随堂练习',
+  monthly: '月考',
+  midterm: '期中考试',
+  final: '期末考试'
+};
+
+export const examTypeOptions = (Object.keys(examTypeLabel) as ExamType[]).map(value => ({
+  label: examTypeLabel[value],
+  value
+}));
+
+/** 常用科目（录入页可自由输入其它） */
+export const commonSubjects = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理'];
 
 /** 出勤率口径：到校即出勤（present/late/early_leave 计入分子） */
 export const attendedStatuses: AttendanceStatus[] = ['present', 'late', 'early_leave'];

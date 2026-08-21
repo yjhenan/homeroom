@@ -20,7 +20,12 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   500: () => import("@/views/_builtin/500/index.vue"),
   "iframe-page": () => import("@/views/_builtin/iframe-page/[url].vue"),
   attendance: () => import("@/views/attendance/index.vue"),
+  discipline: () => import("@/views/discipline/index.vue"),
+  document: () => import("@/views/document/index.vue"),
+  duty: () => import("@/views/duty/index.vue"),
   home: () => import("@/views/home/index.vue"),
+  score: () => import("@/views/score/index.vue"),
+  setting: () => import("@/views/setting/index.vue"),
   "student-detail": () => import("@/views/student-detail/[id].vue"),
   student: () => import("@/views/student/index.vue"),
 };

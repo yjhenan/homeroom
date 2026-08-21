@@ -11,6 +11,11 @@ import IconMonitorDashboard from '~icons/mdi/monitor-dashboard';
 import IconSchoolOutline from '~icons/mdi/school-outline';
 import IconAccountMultipleOutline from '~icons/mdi/account-multiple-outline';
 import IconCalendarCheckOutline from '~icons/mdi/calendar-check-outline';
+import IconChartBoxOutline from '~icons/mdi/chart-box-outline';
+import IconHandCoinOutline from '~icons/mdi/hand-coin-outline';
+import IconBroom from '~icons/mdi/broom';
+import IconFolderOpenOutline from '~icons/mdi/folder-open-outline';
+import IconCogOutline from '~icons/mdi/cog-outline';
 import IconPin from '~icons/mdi/pin';
 import IconPinOff from '~icons/mdi/pin-off';
 import IconPinOutline from '~icons/mdi/pin-outline';
@@ -34,6 +39,11 @@ export const offlineIcons: Record<string, Component> = {
   'mdi:school-outline': IconSchoolOutline,
   'mdi:account-multiple-outline': IconAccountMultipleOutline,
   'mdi:calendar-check-outline': IconCalendarCheckOutline,
+  'mdi:chart-box-outline': IconChartBoxOutline,
+  'mdi:hand-coin-outline': IconHandCoinOutline,
+  'mdi:broom': IconBroom,
+  'mdi:folder-open-outline': IconFolderOpenOutline,
+  'mdi:cog-outline': IconCogOutline,
   'mdi:pin': IconPin,
   'mdi:pin-off': IconPinOff,
   'mdi:pin-outline': IconPinOutline,

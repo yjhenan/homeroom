@@ -20,14 +20,24 @@ export function setupElegantRouter() {
       const routeOrder: Partial<Record<RouteKey, number>> = {
         home: 1,
         student: 2,
-        attendance: 3
+        attendance: 3,
+        score: 4,
+        discipline: 5,
+        duty: 6,
+        document: 7,
+        setting: 8
       };
 
       /** 菜单图标（须同步登记 src/utils/offline-icons.ts） */
       const routeIcon: Partial<Record<RouteKey, string>> = {
         home: 'mdi:monitor-dashboard',
         student: 'mdi:account-multiple-outline',
-        attendance: 'mdi:calendar-check-outline'
+        attendance: 'mdi:calendar-check-outline',
+        score: 'mdi:chart-box-outline',
+        discipline: 'mdi:hand-coin-outline',
+        duty: 'mdi:broom',
+        document: 'mdi:folder-open-outline',
+        setting: 'mdi:cog-outline'
       };
 
       const meta: Partial<RouteMeta> = {
