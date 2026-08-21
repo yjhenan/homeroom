@@ -124,7 +124,8 @@ async function addSubject(name: string, full: number, pass: number) {
     return;
   }
   try {
-    const conf = { ...exam.subject_conf, [t]: { full, pass } };
+    // 逐项浅拷贝：直接 spread 会把嵌套的旧 conf（reactive Proxy）带进 IndexedDB 触发 DataCloneError
+    const conf = cloneSubjectConf(exam.subject_conf, t, { full, pass });
     await repo.updateExam(exam.id, { subjects: [...exam.subjects, t], subject_conf: conf });
     await loadExams();
     activeTab.value = `subj:${t}`;
@@ -185,7 +186,7 @@ async function handleSaveConf() {
   const exam = selectedExam.value;
   if (!exam || !confSubject.value) return;
   try {
-    const conf = { ...exam.subject_conf, [confSubject.value]: { full: confFull.value, pass: confPass.value } };
+    const conf = cloneSubjectConf(exam.subject_conf, confSubject.value, { full: confFull.value, pass: confPass.value });
     await repo.updateExam(exam.id, { subject_conf: conf });
     await loadExams();
     confShow.value = false;
@@ -193,6 +194,20 @@ async function handleSaveConf() {
   } catch (err) {
     window.$message?.error(err instanceof Error ? err.message : '保存失败');
   }
+}
+
+/** 合并科目配置并整体去 Proxy（存 IndexedDB 前必须纯对象） */
+function cloneSubjectConf(
+  prev: Record<string, { full: number; pass: number }> | undefined,
+  key: string,
+  value: { full: number; pass: number }
+): Record<string, { full: number; pass: number }> {
+  const next: Record<string, { full: number; pass: number }> = {};
+  Object.entries(prev ?? {}).forEach(([k, v]) => {
+    next[k] = { full: v.full, pass: v.pass };
+  });
+  next[key] = { ...value };
+  return next;
 }
 
 /** 科目及格线（面板统计用） */

@@ -34,3 +34,6 @@ yarn.lock
 
 .VSCodeCounter
 src-tauri/target
+
+# 作业输出（本地材料，不入库）
+作业素材/
