@@ -23,6 +23,8 @@ export interface Semester {
   end_date: string;
   /** 全表仅一个 true；「当前学期」由它决定 */
   is_active: boolean;
+  /** 归档后全模块只读（M3 起存在；老数据视为 false） */
+  archived?: boolean;
 }
 
 export interface SemesterInput {
@@ -111,6 +113,135 @@ export interface AttendanceQuery {
   statuses?: AttendanceStatus[];
 }
 
+// ---- 成绩（M3）----
+
+export type ExamType = 'daily' | 'monthly' | 'midterm' | 'final';
+
+/** 考试 */
+export interface Exam {
+  id: string;
+  semester_id: string;
+  name: string;
+  date: string;
+  type: ExamType;
+  /** 该考试已录入的科目（录入页下拉用） */
+  subjects: string[];
+  created_at: string;
+}
+
+export interface ExamInput {
+  name: string;
+  date: string;
+  type: ExamType;
+  subjects?: string[];
+}
+
+/** 单科成绩；score null = 缺考 */
+export interface Score {
+  id: string;
+  exam_id: string;
+  student_id: string;
+  semester_id: string;
+  subject: string;
+  score: number | null;
+  updated_at: string;
+}
+
+/** 按科目批量保存的行 */
+export interface ScoreInput {
+  student_id: string;
+  score: number | null;
+}
+
+// ---- 德育（M3）----
+
+export type DisciplineDirection = 'plus' | 'minus';
+
+export interface DisciplineEvent {
+  id: string;
+  semester_id: string;
+  student_id: string;
+  date: string;
+  direction: DisciplineDirection;
+  /** 纪律/卫生/文明/助人/其他 */
+  category: string;
+  /** 分值可不记（只记事） */
+  points?: number;
+  description: string;
+  created_at: string;
+}
+
+export interface DisciplineInput {
+  student_ids: string[];
+  date: string;
+  direction: DisciplineDirection;
+  category: string;
+  points?: number;
+  description: string;
+}
+
+export interface DisciplineFilter {
+  studentId?: string;
+  category?: string;
+  direction?: DisciplineDirection;
+}
+
+// ---- 值日（M3）----
+
+export type DutyEvaluation = 'good' | 'ok' | 'poor';
+
+/** 值日记录：同 (semester, date, area) 一条，排班与评价合一 */
+export interface DutyRecord {
+  id: string;
+  semester_id: string;
+  date: string;
+  group_name?: string;
+  student_ids: string[];
+  /** 教室/包干区/其他 */
+  area: string;
+  evaluation: DutyEvaluation;
+  remark?: string;
+  updated_at: string;
+}
+
+export interface DutyInput {
+  date: string;
+  group_name?: string;
+  student_ids: string[];
+  area: string;
+  evaluation?: DutyEvaluation;
+  remark?: string;
+}
+
+// ---- 文档台账（M3）----
+
+/** 附件以 base64 存 DTO（备份/SQLite 可移植）；UI 层限制单文件 ≤10MB */
+export interface DocumentAttachment {
+  name: string;
+  mime_type: string;
+  data: string;
+}
+
+export interface DocumentRecord {
+  id: string;
+  semester_id: string;
+  title: string;
+  /** 通知/计划/总结/其他 */
+  category: string;
+  date: string;
+  summary?: string;
+  attachment?: DocumentAttachment;
+  created_at: string;
+}
+
+export interface DocumentInput {
+  title: string;
+  category: string;
+  date: string;
+  summary?: string;
+  attachment?: DocumentAttachment;
+}
+
 /** 全量备份 JSON（web→桌面阶段的迁移桥，顶层 version 只增不改） */
 export interface BackupFile {
   version: 1;
@@ -120,6 +251,12 @@ export interface BackupFile {
   enrollments: Enrollment[];
   /** M2 起存在；导入时容忍缺失（M1 老备份） */
   attendance?: Attendance[];
+  /** M3 起存在；导入时容忍缺失 */
+  exams?: Exam[];
+  scores?: Score[];
+  discipline_events?: DisciplineEvent[];
+  duty_records?: DutyRecord[];
+  documents?: DocumentRecord[];
   settings: Record<string, unknown>;
 }
 
@@ -135,6 +272,10 @@ export interface ClassRepo {
   updateSemester(id: string, patch: Partial<Pick<Semester, 'name' | 'start_date' | 'end_date'>>): Promise<void>;
   /** 切换当前学期（保证全表仅一个 active） */
   setActiveSemester(id: string): Promise<void>;
+  /** 归档/取消归档（归档学期全模块只读） */
+  setSemesterArchived(id: string, archived: boolean): Promise<void>;
+  /** 把源学期在读名册复制到目标学期（已存在的跳过），返回新增条数 */
+  copyRoster(fromSemesterId: string, toSemesterId: string): Promise<number>;
 
   // ---- 学生 ----
   /** 不传 semesterId 返回全部学生；传了则只返回该学期在读（含转出，带 enrollment） */
@@ -143,12 +284,14 @@ export interface ClassRepo {
   /** 新增学生并挂到指定学期名册 */
   createStudent(input: StudentInput, semesterId: string): Promise<Student>;
   updateStudent(id: string, patch: Partial<StudentInput>): Promise<Student>;
-  /** 硬删：学生 + 其全部名册与考勤记录；返回删除条数（供 UI 提示影响范围） */
-  deleteStudent(id: string): Promise<{ enrollments: number; attendance: number }>;
+  /** 硬删：学生 + 名册/考勤/成绩/德育记录（并移出值日名单）；返回删除条数 */
+  deleteStudent(id: string): Promise<{ enrollments: number; attendance: number; scores: number; discipline: number }>;
   /** Excel 导入：按学号匹配，冲突时按策略覆盖或跳过；新学生自动挂入指定学期名册 */
   importStudents(rows: StudentInput[], semesterId: string, strategy: ImportConflictStrategy): Promise<ImportResult>;
-  /** 删除提示用：统计某学生历史关联记录数（M3 再扩展成绩/德育/值日） */
-  countStudentRecords(studentId: string): Promise<{ enrollments: number; attendance: number }>;
+  /** 删除提示用：统计某学生历史关联记录数 */
+  countStudentRecords(
+    studentId: string
+  ): Promise<{ enrollments: number; attendance: number; scores: number; discipline: number }>;
 
   // ---- 考勤 ----
   /** 某学期某天的全部考勤（未录返回空数组） */
@@ -157,6 +300,46 @@ export interface ClassRepo {
   saveAttendanceForDate(semesterId: string, date: string, rows: AttendanceInput[]): Promise<void>;
   /** 按条件查询（日期范围/学生/状态） */
   queryAttendance(query: AttendanceQuery): Promise<Attendance[]>;
+
+  // ---- 考试与成绩 ----
+  listExams(semesterId: string): Promise<Exam[]>;
+  createExam(input: ExamInput, semesterId: string): Promise<Exam>;
+  updateExam(id: string, patch: Partial<ExamInput>): Promise<void>;
+  /** 删除考试及其全部成绩，返回删除的成绩条数 */
+  deleteExam(id: string): Promise<{ scores: number }>;
+  /** 某考试某科目全部成绩 */
+  getScoresBySubject(examId: string, subject: string): Promise<Score[]>;
+  /** 某考试某科目成绩全量替换（缺考传 null；行不传视为清空该生该科） */
+  saveScoresForSubject(examId: string, subject: string, rows: ScoreInput[]): Promise<void>;
+  /** 学生全学期成绩（360 趋势用） */
+  getScoresByStudent(semesterId: string, studentId: string): Promise<Score[]>;
+
+  // ---- 德育 ----
+  listDisciplineEvents(semesterId: string, filter?: DisciplineFilter): Promise<DisciplineEvent[]>;
+  /** 快速新增：一次给多个学生记同一事件，返回新增条数 */
+  addDisciplineEvents(input: DisciplineInput, semesterId: string): Promise<number>;
+  deleteDisciplineEvent(id: string): Promise<void>;
+  /** 学生全学期德育事件（360 用） */
+  getDisciplineByStudent(semesterId: string, studentId: string): Promise<DisciplineEvent[]>;
+
+  // ---- 值日 ----
+  /** 日期范围（含）内的值日记录 */
+  listDutyRecords(semesterId: string, from?: string, to?: string): Promise<DutyRecord[]>;
+  /** upsert：同 (semester, date, area) 唯一 */
+  saveDutyRecord(input: DutyInput, semesterId: string): Promise<DutyRecord>;
+  deleteDutyRecord(id: string): Promise<void>;
+  /** 学生参与的值日记录（360 用） */
+  getDutyByStudent(semesterId: string, studentId: string): Promise<DutyRecord[]>;
+
+  // ---- 文档台账 ----
+  listDocuments(semesterId: string): Promise<DocumentRecord[]>;
+  createDocument(input: DocumentInput, semesterId: string): Promise<DocumentRecord>;
+  /** 更新条目（attachment 传 undefined 表示不变，传 null 表示删除附件） */
+  updateDocument(
+    id: string,
+    patch: Partial<Omit<DocumentInput, 'attachment'>> & { attachment?: DocumentAttachment | null }
+  ): Promise<void>;
+  deleteDocument(id: string): Promise<void>;
 
   // ---- 名册 ----
   listEnrollments(semesterId: string): Promise<Enrollment[]>;

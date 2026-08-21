@@ -7,9 +7,21 @@ import type {
   AttendanceQuery,
   BackupFile,
   ClassRepo,
+  DisciplineEvent,
+  DisciplineFilter,
+  DisciplineInput,
+  DocumentAttachment,
+  DocumentInput,
+  DocumentRecord,
+  DutyInput,
+  DutyRecord,
   Enrollment,
+  Exam,
+  ExamInput,
   ImportConflictStrategy,
   ImportResult,
+  Score,
+  ScoreInput,
   Semester,
   SemesterInput,
   Student,
@@ -42,6 +54,11 @@ class HomeroomDB extends Dexie {
   students!: Table<Student, string>;
   enrollments!: Table<Enrollment, string>;
   attendance!: Table<Attendance, string>;
+  exams!: Table<Exam, string>;
+  scores!: Table<Score, string>;
+  discipline_events!: Table<DisciplineEvent, string>;
+  duty_records!: Table<DutyRecord, string>;
+  documents!: Table<DocumentRecord, string>;
   settings!: Table<SettingRow, string>;
 
   constructor() {
@@ -65,6 +82,27 @@ class HomeroomDB extends Dexie {
       .upgrade(() => {
         // 新增表无需数据迁移，保留空 upgrade 以显式声明版本意图
         return Promise.resolve();
+      });
+
+    // v3 (M3)：成绩/德育/值日/文档五表；semesters 补 archived 字段
+    this.version(3)
+      .stores({
+        exams: 'id, semester_id, date',
+        scores: 'id, &[exam_id+student_id+subject], exam_id, student_id, semester_id',
+        discipline_events: 'id, semester_id, student_id, date',
+        duty_records: 'id, &[semester_id+date+area], semester_id, date',
+        documents: 'id, semester_id, date'
+      })
+      .upgrade(trans => {
+        // 老学期行补 archived=false（新表无需迁移）
+        return trans
+          .table('semesters')
+          .toCollection()
+          .modify(s => {
+            if (s.archived === undefined) {
+              s.archived = false;
+            }
+          });
       });
   }
 }
@@ -118,6 +156,36 @@ export class DexieClassRepo implements ClassRepo {
       }
       await this.clearActiveSemesters();
       await this.db.semesters.update(id, { is_active: true });
+    });
+  }
+
+  async setSemesterArchived(id: string, archived: boolean): Promise<void> {
+    const target = await this.db.semesters.get(id);
+    if (!target) {
+      throw new Error(`学期不存在: ${id}`);
+    }
+    if (archived && target.is_active) {
+      throw new Error('当前学期不能归档，请先切换到其他学期');
+    }
+    await this.db.semesters.update(id, { archived });
+  }
+
+  async copyRoster(fromSemesterId: string, toSemesterId: string): Promise<number> {
+    if (fromSemesterId === toSemesterId) {
+      throw new Error('源学期与目标学期相同');
+    }
+    return this.db.transaction('rw', this.db.enrollments, async () => {
+      const source = await this.db.enrollments.where('semester_id').equals(fromSemesterId).toArray();
+      const existing = new Set(
+        (await this.db.enrollments.where('semester_id').equals(toSemesterId).toArray()).map(e => e.student_id)
+      );
+      const toAdd = source
+        .filter(e => e.status === 'active' && !existing.has(e.student_id))
+        .map(e => ({ id: genId(), semester_id: toSemesterId, student_id: e.student_id, status: 'active' as const }));
+      if (toAdd.length) {
+        await this.db.enrollments.bulkAdd(toAdd);
+      }
+      return toAdd.length;
     });
   }
 
@@ -198,13 +266,38 @@ export class DexieClassRepo implements ClassRepo {
     return next;
   }
 
-  async deleteStudent(id: string): Promise<{ enrollments: number; attendance: number }> {
-    return this.db.transaction('rw', this.db.students, this.db.enrollments, this.db.attendance, async () => {
-      const removedEnrollments = await this.db.enrollments.where('student_id').equals(id).delete();
-      const removedAttendance = await this.db.attendance.where('student_id').equals(id).delete();
-      await this.db.students.delete(id);
-      return { enrollments: removedEnrollments, attendance: removedAttendance };
-    });
+  async deleteStudent(
+    id: string
+  ): Promise<{ enrollments: number; attendance: number; scores: number; discipline: number }> {
+    return this.db.transaction(
+      'rw',
+      [
+        this.db.students,
+        this.db.enrollments,
+        this.db.attendance,
+        this.db.scores,
+        this.db.discipline_events,
+        this.db.duty_records
+      ],
+      async () => {
+        const removedEnrollments = await this.db.enrollments.where('student_id').equals(id).delete();
+        const removedAttendance = await this.db.attendance.where('student_id').equals(id).delete();
+        const removedScores = await this.db.scores.where('student_id').equals(id).delete();
+        const removedDiscipline = await this.db.discipline_events.where('student_id').equals(id).delete();
+        // 值日记录里移除该学生（保留记录本身）
+        const duty = await this.db.duty_records.filter(r => r.student_ids.includes(id)).toArray();
+        await Promise.all(
+          duty.map(r => this.db.duty_records.update(r.id, { student_ids: r.student_ids.filter(sid => sid !== id) }))
+        );
+        await this.db.students.delete(id);
+        return {
+          enrollments: removedEnrollments,
+          attendance: removedAttendance,
+          scores: removedScores,
+          discipline: removedDiscipline
+        };
+      }
+    );
   }
 
   async importStudents(
@@ -274,10 +367,14 @@ export class DexieClassRepo implements ClassRepo {
     return result;
   }
 
-  async countStudentRecords(studentId: string): Promise<{ enrollments: number; attendance: number }> {
+  async countStudentRecords(
+    studentId: string
+  ): Promise<{ enrollments: number; attendance: number; scores: number; discipline: number }> {
     return {
       enrollments: await this.db.enrollments.where('student_id').equals(studentId).count(),
-      attendance: await this.db.attendance.where('student_id').equals(studentId).count()
+      attendance: await this.db.attendance.where('student_id').equals(studentId).count(),
+      scores: await this.db.scores.where('student_id').equals(studentId).count(),
+      discipline: await this.db.discipline_events.where('student_id').equals(studentId).count()
     };
   }
 
@@ -333,6 +430,261 @@ export class DexieClassRepo implements ClassRepo {
     );
   }
 
+  // ---- 考试与成绩 ----
+
+  async listExams(semesterId: string): Promise<Exam[]> {
+    const rows = await this.db.exams.where('semester_id').equals(semesterId).toArray();
+    return rows.sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  async createExam(input: ExamInput, semesterId: string): Promise<Exam> {
+    await assertSemesterWritable(this.db, semesterId);
+    const exam: Exam = {
+      id: genId(),
+      semester_id: semesterId,
+      name: input.name.trim(),
+      date: input.date,
+      type: input.type,
+      subjects: input.subjects ?? [],
+      created_at: nowISO()
+    };
+    await this.db.exams.add(exam);
+    return exam;
+  }
+
+  async updateExam(id: string, patch: Partial<ExamInput>): Promise<void> {
+    const existing = await this.db.exams.get(id);
+    if (!existing) {
+      throw new Error(`考试不存在: ${id}`);
+    }
+    await assertSemesterWritable(this.db, existing.semester_id);
+    await this.db.exams.update(id, patch);
+  }
+
+  async deleteExam(id: string): Promise<{ scores: number }> {
+    return this.db.transaction('rw', [this.db.semesters, this.db.exams, this.db.scores], async () => {
+      const existing = await this.db.exams.get(id);
+      if (existing) {
+        await assertSemesterWritable(this.db, existing.semester_id);
+      }
+      const removed = await this.db.scores.where('exam_id').equals(id).delete();
+      await this.db.exams.delete(id);
+      return { scores: removed };
+    });
+  }
+
+  async getScoresBySubject(examId: string, subject: string): Promise<Score[]> {
+    const rows = await this.db.scores.where('exam_id').equals(examId).toArray();
+    return rows.filter(s => s.subject === subject);
+  }
+
+  async saveScoresForSubject(examId: string, subject: string, rows: ScoreInput[]): Promise<void> {
+    await this.db.transaction('rw', [this.db.semesters, this.db.exams, this.db.scores], async () => {
+      const exam = await this.db.exams.get(examId);
+      if (!exam) {
+        throw new Error(`考试不存在: ${examId}`);
+      }
+      await assertSemesterWritable(this.db, exam.semester_id);
+
+      // 全量替换该 (exam, subject)
+      const prev = await this.db.scores.where('exam_id').equals(examId).toArray();
+      const prevIds = prev.filter(s => s.subject === subject).map(s => s.id);
+      if (prevIds.length) {
+        await this.db.scores.bulkDelete(prevIds);
+      }
+
+      const now = nowISO();
+      const records: Score[] = rows.map(r => ({
+        id: genId(),
+        exam_id: examId,
+        student_id: r.student_id,
+        semester_id: exam.semester_id,
+        subject,
+        score: r.score,
+        updated_at: now
+      }));
+      if (records.length) {
+        await this.db.scores.bulkAdd(records);
+      }
+
+      // 登记科目
+      if (!exam.subjects.includes(subject)) {
+        await this.db.exams.update(examId, { subjects: [...exam.subjects, subject] });
+      }
+    });
+  }
+
+  async getScoresByStudent(semesterId: string, studentId: string): Promise<Score[]> {
+    const rows = await this.db.scores
+      .where('student_id')
+      .equals(studentId)
+      .filter(s => s.semester_id === semesterId)
+      .toArray();
+    return rows.sort((a, b) => a.exam_id.localeCompare(b.exam_id) || a.subject.localeCompare(b.subject));
+  }
+
+  // ---- 德育 ----
+
+  async listDisciplineEvents(semesterId: string, filter?: DisciplineFilter): Promise<DisciplineEvent[]> {
+    let rows =
+      filter?.studentId !== undefined
+        ? await this.db.discipline_events
+            .where('student_id')
+            .equals(filter.studentId)
+            .filter(e => e.semester_id === semesterId)
+            .toArray()
+        : await this.db.discipline_events.where('semester_id').equals(semesterId).toArray();
+
+    if (filter?.category) {
+      rows = rows.filter(e => e.category === filter.category);
+    }
+    if (filter?.direction) {
+      rows = rows.filter(e => e.direction === filter.direction);
+    }
+    // 时间倒序，同日按创建时间倒序
+    return rows.sort((a, b) =>
+      a.date === b.date ? b.created_at.localeCompare(a.created_at) : b.date.localeCompare(a.date)
+    );
+  }
+
+  async addDisciplineEvents(input: DisciplineInput, semesterId: string): Promise<number> {
+    await assertSemesterWritable(this.db, semesterId);
+    const now = nowISO();
+    const events: DisciplineEvent[] = input.student_ids.map(sid => ({
+      id: genId(),
+      semester_id: semesterId,
+      student_id: sid,
+      date: input.date,
+      direction: input.direction,
+      category: input.category,
+      ...(input.points !== undefined ? { points: input.points } : {}),
+      description: input.description.trim(),
+      created_at: now
+    }));
+    if (events.length) {
+      await this.db.discipline_events.bulkAdd(events);
+    }
+    return events.length;
+  }
+
+  async deleteDisciplineEvent(id: string): Promise<void> {
+    const existing = await this.db.discipline_events.get(id);
+    if (existing) {
+      await assertSemesterWritable(this.db, existing.semester_id);
+    }
+    await this.db.discipline_events.delete(id);
+  }
+
+  async getDisciplineByStudent(semesterId: string, studentId: string): Promise<DisciplineEvent[]> {
+    const rows = await this.db.discipline_events
+      .where('student_id')
+      .equals(studentId)
+      .filter(e => e.semester_id === semesterId)
+      .toArray();
+    return rows.sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  // ---- 值日 ----
+
+  async listDutyRecords(semesterId: string, from?: string, to?: string): Promise<DutyRecord[]> {
+    const rows =
+      from && to
+        ? await this.db.duty_records
+            .where('date')
+            .between(from, to, true, true)
+            .filter(r => r.semester_id === semesterId)
+            .toArray()
+        : await this.db.duty_records.where('semester_id').equals(semesterId).toArray();
+    return rows.sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  async saveDutyRecord(input: DutyInput, semesterId: string): Promise<DutyRecord> {
+    const record: DutyRecord = {
+      id: genId(),
+      semester_id: semesterId,
+      date: input.date,
+      student_ids: [...input.student_ids],
+      area: input.area,
+      evaluation: input.evaluation ?? 'ok',
+      updated_at: nowISO(),
+      ...(input.group_name ? { group_name: input.group_name } : {}),
+      ...(input.remark ? { remark: input.remark } : {})
+    };
+
+    // &[semester_id+date+area] 唯一：先删旧再插（put 只按主键 upsert，复合唯一索引仍会冲突）
+    await this.db.transaction('rw', [this.db.semesters, this.db.duty_records], async () => {
+      await assertSemesterWritable(this.db, semesterId);
+      await this.db.duty_records.where('[semester_id+date+area]').equals([semesterId, input.date, input.area]).delete();
+      await this.db.duty_records.add(record);
+    });
+    return record;
+  }
+
+  async deleteDutyRecord(id: string): Promise<void> {
+    const existing = await this.db.duty_records.get(id);
+    if (existing) {
+      await assertSemesterWritable(this.db, existing.semester_id);
+    }
+    await this.db.duty_records.delete(id);
+  }
+
+  async getDutyByStudent(semesterId: string, studentId: string): Promise<DutyRecord[]> {
+    const rows = await this.db.duty_records.where('semester_id').equals(semesterId).toArray();
+    return rows.filter(r => r.student_ids.includes(studentId)).sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  // ---- 文档台账 ----
+
+  async listDocuments(semesterId: string): Promise<DocumentRecord[]> {
+    const rows = await this.db.documents.where('semester_id').equals(semesterId).toArray();
+    return rows.sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  async createDocument(input: DocumentInput, semesterId: string): Promise<DocumentRecord> {
+    await assertSemesterWritable(this.db, semesterId);
+    const record: DocumentRecord = {
+      id: genId(),
+      semester_id: semesterId,
+      title: input.title.trim(),
+      category: input.category,
+      date: input.date,
+      created_at: nowISO(),
+      ...(input.summary ? { summary: input.summary } : {}),
+      ...(input.attachment ? { attachment: input.attachment } : {})
+    };
+    await this.db.documents.add(record);
+    return record;
+  }
+
+  async updateDocument(
+    id: string,
+    patch: Partial<Omit<DocumentInput, 'attachment'>> & { attachment?: DocumentAttachment | null }
+  ): Promise<void> {
+    const existing = await this.db.documents.get(id);
+    if (!existing) {
+      throw new Error(`文档不存在: ${id}`);
+    }
+    await assertSemesterWritable(this.db, existing.semester_id);
+
+    const next: Partial<DocumentRecord> = {};
+    if (patch.title !== undefined) next.title = patch.title.trim();
+    if (patch.category !== undefined) next.category = patch.category;
+    if (patch.date !== undefined) next.date = patch.date;
+    if (patch.summary !== undefined) next.summary = patch.summary || undefined;
+    if (patch.attachment !== undefined) {
+      next.attachment = patch.attachment === null ? undefined : patch.attachment;
+    }
+    await this.db.documents.update(id, next);
+  }
+
+  async deleteDocument(id: string): Promise<void> {
+    const existing = await this.db.documents.get(id);
+    if (existing) {
+      await assertSemesterWritable(this.db, existing.semester_id);
+    }
+    await this.db.documents.delete(id);
+  }
+
   private async assertStudentNoUnique(studentNo: string, excludeId?: string): Promise<void> {
     const dup = await this.db.students.where('student_no').equals(studentNo).first();
     if (dup && dup.id !== excludeId) {
@@ -364,11 +716,27 @@ export class DexieClassRepo implements ClassRepo {
   // ---- 备份 ----
 
   async exportAll(): Promise<BackupFile> {
-    const [semesters, students, enrollments, attendance, settingRows] = await Promise.all([
+    const [
+      semesters,
+      students,
+      enrollments,
+      attendance,
+      exams,
+      scores,
+      disciplineEvents,
+      dutyRecords,
+      documents,
+      settingRows
+    ] = await Promise.all([
       this.db.semesters.toArray(),
       this.db.students.toArray(),
       this.db.enrollments.toArray(),
       this.db.attendance.toArray(),
+      this.db.exams.toArray(),
+      this.db.scores.toArray(),
+      this.db.discipline_events.toArray(),
+      this.db.duty_records.toArray(),
+      this.db.documents.toArray(),
       this.db.settings.toArray()
     ]);
 
@@ -384,6 +752,11 @@ export class DexieClassRepo implements ClassRepo {
       students,
       enrollments,
       attendance,
+      exams,
+      scores,
+      discipline_events: disciplineEvents,
+      duty_records: dutyRecords,
+      documents,
       settings
     };
   }
@@ -395,21 +768,52 @@ export class DexieClassRepo implements ClassRepo {
 
     await this.db.transaction(
       'rw',
-      [this.db.semesters, this.db.students, this.db.enrollments, this.db.attendance, this.db.settings],
+      [
+        this.db.semesters,
+        this.db.students,
+        this.db.enrollments,
+        this.db.attendance,
+        this.db.exams,
+        this.db.scores,
+        this.db.discipline_events,
+        this.db.duty_records,
+        this.db.documents,
+        this.db.settings
+      ],
       async () => {
         await Promise.all([
           this.db.semesters.clear(),
           this.db.students.clear(),
           this.db.enrollments.clear(),
           this.db.attendance.clear(),
+          this.db.exams.clear(),
+          this.db.scores.clear(),
+          this.db.discipline_events.clear(),
+          this.db.duty_records.clear(),
+          this.db.documents.clear(),
           this.db.settings.clear()
         ]);
         await this.db.semesters.bulkPut(data.semesters);
         await this.db.students.bulkPut(data.students);
         await this.db.enrollments.bulkPut(data.enrollments);
-        // M1 老备份无 attendance 字段
+        // M1/M2 老备份缺 M3 字段，一律容忍缺失
         if (data.attendance?.length) {
           await this.db.attendance.bulkPut(data.attendance);
+        }
+        if (data.exams?.length) {
+          await this.db.exams.bulkPut(data.exams);
+        }
+        if (data.scores?.length) {
+          await this.db.scores.bulkPut(data.scores);
+        }
+        if (data.discipline_events?.length) {
+          await this.db.discipline_events.bulkPut(data.discipline_events);
+        }
+        if (data.duty_records?.length) {
+          await this.db.duty_records.bulkPut(data.duty_records);
+        }
+        if (data.documents?.length) {
+          await this.db.documents.bulkPut(data.documents);
         }
         await this.db.settings.bulkPut(Object.entries(data.settings).map(([key, value]) => ({ key, value })));
       }
@@ -429,4 +833,12 @@ function normalizeStudentInput(input: StudentInput): StudentInput {
   if (input.address) normalized.address = input.address;
   if (input.notes) normalized.notes = input.notes;
   return normalized;
+}
+
+/** 归档学期只读校验 */
+async function assertSemesterWritable(db: HomeroomDB, semesterId: string): Promise<void> {
+  const sem = await db.semesters.get(semesterId);
+  if (sem?.archived) {
+    throw new Error(`学期已归档，只读：${sem.name}`);
+  }
 }
