@@ -25,6 +25,8 @@ export interface Semester {
   is_active: boolean;
   /** 归档后全模块只读（M3 起存在；老数据视为 false） */
   archived?: boolean;
+  /** 假期日期列表（YYYY-MM-DD，非索引字段）；应出勤工作日计算时排除 */
+  holidays?: string[];
 }
 
 export interface SemesterInput {
@@ -274,6 +276,8 @@ export interface ClassRepo {
   setActiveSemester(id: string): Promise<void>;
   /** 归档/取消归档（归档学期全模块只读） */
   setSemesterArchived(id: string, archived: boolean): Promise<void>;
+  /** 设置学期假期列表（应出勤工作日排除这些日期；归档学期也可改，属元数据） */
+  setSemesterHolidays(id: string, holidays: string[]): Promise<void>;
   /** 把源学期在读名册复制到目标学期（已存在的跳过），返回新增条数 */
   copyRoster(fromSemesterId: string, toSemesterId: string): Promise<number>;
 
@@ -313,6 +317,8 @@ export interface ClassRepo {
   saveScoresForSubject(examId: string, subject: string, rows: ScoreInput[]): Promise<void>;
   /** 学生全学期成绩（360 趋势用） */
   getScoresByStudent(semesterId: string, studentId: string): Promise<Score[]>;
+  /** 某考试全部成绩（总表用） */
+  getScoresByExam(examId: string): Promise<Score[]>;
 
   // ---- 德育 ----
   listDisciplineEvents(semesterId: string, filter?: DisciplineFilter): Promise<DisciplineEvent[]>;

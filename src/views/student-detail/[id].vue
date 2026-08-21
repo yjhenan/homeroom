@@ -40,7 +40,7 @@ const expectedDays = computed(() => {
   const sem = semesterStore.activeSemester;
   if (!sem) return 0;
   const stop = dayjs().isBefore(dayjs(sem.end_date), 'day') ? todayStr() : sem.end_date;
-  return workdaysBetween(sem.start_date, stop);
+  return workdaysBetween(sem.start_date, stop, sem.holidays ?? []);
 });
 
 /** 缺记录天数 = 应出勤 - 已记录（>0 提醒补录，出勤率口径注明"按已记录"） */

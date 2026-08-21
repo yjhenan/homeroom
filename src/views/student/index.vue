@@ -79,7 +79,7 @@ const columns: DataTableColumns<StudentWithEnrollment> = [
         h(
           NButton,
           { size: 'small', quaternary: true, type: 'primary', onClick: () => handleDetail(row) },
-          { default: () => '360' }
+          { default: () => '详情' }
         ),
         h(
           NButton,

@@ -223,9 +223,47 @@ async function handleBackupImportChange(e: Event) {
 
 const lastBackupAt = ref<string | null>(null);
 
+// ---- 假期（当前学期）----
+const holidayList = ref<string[]>([]);
+const newHoliday = ref<string | null>(null);
+const holidaySaving = ref(false);
+
+async function loadHolidays() {
+  const sem = semesterStore.activeSemester;
+  holidayList.value = [...(sem?.holidays ?? [])];
+}
+
+async function addHoliday() {
+  const d = newHoliday.value;
+  if (!d || holidayList.value.includes(d)) return;
+  holidayList.value = [...holidayList.value, d].sort();
+  newHoliday.value = null;
+  await saveHolidays();
+}
+
+async function removeHoliday(d: string) {
+  holidayList.value = holidayList.value.filter(x => x !== d);
+  await saveHolidays();
+}
+
+async function saveHolidays() {
+  if (!semesterStore.activeSemesterId) return;
+  holidaySaving.value = true;
+  try {
+    await repo.setSemesterHolidays(semesterStore.activeSemesterId, holidayList.value);
+    await refreshSemesters();
+    window.$message?.success('假期已更新');
+  } catch (err) {
+    window.$message?.error(err instanceof Error ? err.message : '保存失败');
+  } finally {
+    holidaySaving.value = false;
+  }
+}
+
 onMounted(async () => {
   await load();
   lastBackupAt.value = await repo.getSetting<string>('lastBackupAt');
+  await loadHolidays();
 });
 </script>
 
@@ -249,6 +287,30 @@ onMounted(async () => {
     </NCard>
 
     <!-- 数据 -->
+    <!-- 假期（当前学期） -->
+    <NCard :bordered="false" class="card-wrapper" title="假期管理">
+      <template #header-extra>
+        <NText depth="3" class="text-13px">作用于：{{ semesterStore.activeSemester?.name ?? '—' }}</NText>
+      </template>
+      <div class="flex flex-wrap items-center gap-12px">
+        <NDatePicker
+          v-model:formatted-value="newHoliday"
+          type="date"
+          value-format="yyyy-MM-dd"
+          clearable
+          class="w-170px"
+        />
+        <NButton :disabled="!newHoliday" :loading="holidaySaving" @click="addHoliday">添加假期</NButton>
+        <NText depth="3" class="text-13px">假期日不计入「应出勤工作日」，360 视图的缺记录提醒会相应减少</NText>
+      </div>
+      <div v-if="holidayList.length" class="mt-12px flex flex-wrap gap-8px">
+        <NTag v-for="d in holidayList" :key="d" closable size="small" @close="removeHoliday(d)">
+          {{ d }}
+        </NTag>
+      </div>
+      <NEmpty v-else description="未设置假期（按周一~周五估算应出勤）" size="small" class="mt-8px" />
+    </NCard>
+
     <NCard :bordered="false" class="card-wrapper" title="数据备份">
       <div class="flex flex-wrap items-center gap-12px">
         <NButton @click="handleBackupExport">导出 JSON 备份</NButton>

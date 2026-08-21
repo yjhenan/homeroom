@@ -2,6 +2,7 @@
 import { computed, h, onMounted, ref, watch } from 'vue';
 import type { DataTableColumns, UploadFileInfo } from 'naive-ui';
 import { NButton, NTag } from 'naive-ui';
+import IconPaperclip from '~icons/mdi/paperclip';
 import { useSemesterStore } from '@/store/modules/semester';
 import { repo } from '@/repo';
 import { todayStr } from '@/utils/date';
@@ -47,13 +48,29 @@ const columns: DataTableColumns<DocumentRecord> = [
   {
     title: '附件',
     key: 'attachment',
-    width: 160,
+    width: 180,
     render: row =>
       row.attachment
         ? h(
             NButton,
-            { size: 'small', quaternary: true, type: 'primary', onClick: () => downloadAttachment(row) },
-            { default: () => `📎 ${row.attachment!.name}` }
+            {
+              size: 'small',
+              quaternary: true,
+              type: 'primary',
+              class: 'max-w-170px',
+              onClick: () => downloadAttachment(row)
+            },
+            {
+              default: () =>
+                h(
+                  'span',
+                  { class: 'flex items-center gap-4px overflow-hidden', title: `下载 ${row.attachment!.name}` },
+                  [
+                    h(IconPaperclip, { class: 'shrink-0 opacity-80' }),
+                    h('span', { class: 'truncate' }, row.attachment!.name)
+                  ]
+                )
+            }
           )
         : '—'
   },
@@ -307,8 +324,9 @@ onMounted(async () => {
               <NButton size="small">选择文件（≤10MB）</NButton>
             </NUpload>
             <div v-if="form.attachment" class="flex items-center gap-8px text-13px">
-              <span>📎 {{ form.attachment.name }}</span>
-              <NButton text size="tiny" type="error" @click="clearAttachment">移除</NButton>
+              <IconPaperclip class="shrink-0 opacity-80" />
+              <span class="truncate" :title="form.attachment.name">{{ form.attachment.name }}</span>
+              <NButton text size="tiny" type="error" class="shrink-0" @click="clearAttachment">移除</NButton>
             </div>
             <NText v-if="editingRecord?.attachment && !form.attachment" depth="3" class="text-13px">
               现有附件：{{ editingRecord.attachment.name }}（保存时保留；重新选择则替换）

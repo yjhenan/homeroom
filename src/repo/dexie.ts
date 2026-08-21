@@ -170,6 +170,14 @@ export class DexieClassRepo implements ClassRepo {
     await this.db.semesters.update(id, { archived });
   }
 
+  async setSemesterHolidays(id: string, holidays: string[]): Promise<void> {
+    const target = await this.db.semesters.get(id);
+    if (!target) {
+      throw new Error(`学期不存在: ${id}`);
+    }
+    await this.db.semesters.update(id, { holidays: [...holidays].sort() });
+  }
+
   async copyRoster(fromSemesterId: string, toSemesterId: string): Promise<number> {
     if (fromSemesterId === toSemesterId) {
       throw new Error('源学期与目标学期相同');
@@ -512,6 +520,10 @@ export class DexieClassRepo implements ClassRepo {
         await this.db.exams.update(examId, { subjects: [...exam.subjects, subject] });
       }
     });
+  }
+
+  async getScoresByExam(examId: string): Promise<Score[]> {
+    return this.db.scores.where('exam_id').equals(examId).toArray();
   }
 
   async getScoresByStudent(semesterId: string, studentId: string): Promise<Score[]> {

@@ -26,15 +26,17 @@ export function mondayOfStr(d: Date | number | string = new Date()): string {
   return day.subtract(offset, 'day').format('YYYY-MM-DD');
 }
 
-/** [start, end] 内的工作日数（周一~周五，含两端） */
-export function workdaysBetween(start: string, end: string): number {
+/** [start, end] 内的工作日数（周一~周五，含两端；holidays 里的日期排除） */
+export function workdaysBetween(start: string, end: string, holidays: string[] = []): number {
   const from = dayjs(start);
   const to = dayjs(end);
   if (to.isBefore(from, 'day')) return 0;
+  const skip = new Set(holidays);
   let days = 0;
   for (let d = from; !d.isAfter(to, 'day'); d = d.add(1, 'day')) {
+    const key = d.format('YYYY-MM-DD');
     const dow = d.day();
-    if (dow >= 1 && dow <= 5) days += 1;
+    if (dow >= 1 && dow <= 5 && !skip.has(key)) days += 1;
   }
   return days;
 }
