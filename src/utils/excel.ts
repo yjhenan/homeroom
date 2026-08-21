@@ -56,10 +56,30 @@ export function exportStudents(students: StudentWithEnrollment[]) {
   XLSX.writeFile(wb, `学生名单_${dateStampStr()}.xlsx`);
 }
 
+/** 读取首个工作表为「表头 + 行矩阵」（成绩表导入等通用场景） */
+export async function readSheetMatrix(file: File): Promise<{ headers: string[]; rows: string[][] }> {
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data, { cellDates: true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  if (!ws) {
+    throw new Error('文件中没有工作表');
+  }
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false, raw: true });
+  const headers = (matrix[0] ?? []).map(c => String(c ?? '').trim());
+  const rows = matrix.slice(1).map(r =>
+    (r ?? []).map(c => {
+      if (c == null) return '';
+      if (c instanceof Date) return formatDate(c) ?? '';
+      return String(c).trim();
+    })
+  );
+  return { headers, rows };
+}
+
 /**
  * 解析导入文件：行级校验，一次列全所有错误
  *
- * - 必填缺失（���号/姓名）→ 错误
+ * - 必填缺失（学号/姓名）→ 错误
  * - 文件内学号重复 → 后出现的行报错
  * - 性别仅接受 男/女/未知/空
  * - 出生日期格式化为 YYYY-MM-DD，非法报错

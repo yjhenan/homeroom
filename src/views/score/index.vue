@@ -8,6 +8,7 @@ import type { Exam, ExamInput } from '@/repo';
 import ExamModal from './modules/exam-modal.vue';
 import SubjectPanel from './modules/subject-panel.vue';
 import MatrixPanel from './modules/matrix-panel.vue';
+import ScoreImportModal from './modules/import-modal.vue';
 
 defineOptions({
   name: 'Score'
@@ -28,6 +29,15 @@ const dataVersion = ref(0);
 /** ＋科目弹层 */
 const addShow = ref(false);
 const newSubject = ref('');
+
+/** 成绩表导入 */
+const importShow = ref(false);
+
+function handleImportRefreshed() {
+  handleSaved(); // 总表重载
+  loadExams(); // 科目可能新增
+  activeTab.value = '__matrix';
+}
 
 const isArchived = computed(() => semesterStore.activeSemester?.archived === true);
 const selectedExam = computed(() => exams.value.find(e => e.id === selectedExamId.value) ?? null);
@@ -154,6 +164,7 @@ onMounted(async () => {
         filterable
       />
       <NButton type="primary" :disabled="isArchived" @click="handleAdd">新建考试</NButton>
+      <NButton :disabled="isArchived || !selectedExam" @click="importShow = true">导入成绩表</NButton>
       <NButton :disabled="isArchived || !selectedExam" @click="handleEdit">编辑</NButton>
       <NButton quaternary type="error" :disabled="isArchived || !selectedExam" @click="handleDelete">删除</NButton>
       <span v-if="selectedExam" class="text-13px opacity-60">{{ examInfo }}</span>
@@ -211,6 +222,12 @@ onMounted(async () => {
     <NEmpty v-else description="先新建或选择一场考试，再添加科目录入成绩" class="py-48px" />
 
     <ExamModal v-model:show="modalShow" :exam="editingExam" :saving="saving" @save="handleSaveExam" />
+    <ScoreImportModal
+      v-model:show="importShow"
+      :exam-id="selectedExamId ?? ''"
+      :existing-subjects="subjects"
+      @refreshed="handleImportRefreshed"
+    />
   </NCard>
 </template>
 
