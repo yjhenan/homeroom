@@ -6,6 +6,7 @@ import { attendanceStatusLabel, attendanceTagType } from '@/constants/business';
 import { useSemesterStore } from '@/store/modules/semester';
 import { useStudentStore } from '@/store/modules/student';
 import { repo } from '@/repo';
+import { todayStr } from '@/utils/date';
 import type { Attendance, AttendanceStatus } from '@/repo';
 
 defineOptions({

@@ -108,9 +108,9 @@ onMounted(async () => {
         <NStatistic label="最低" :value="summary.min" />
       </div>
       <NEmpty v-else description="该科目暂无成绩" class="py-24px" />
-      <div v-if="rows.length" class="max-h-480px overflow-auto rounded-6px border border-[rgb(63,69,87)]">
+      <div v-if="rows.length" class="max-h-480px overflow-auto rounded-6px border border-[rgba(127,127,127,0.28)]">
         <table class="w-full text-14px">
-          <thead class="sticky top-0 bg-[rgb(38,45,64)]">
+          <thead class="sticky top-0 bg-[rgba(127,127,127,0.14)]">
             <tr>
               <th class="w-80px px-12px py-8px text-left font-medium">名次</th>
               <th class="w-120px px-12px py-8px text-left font-medium">学号</th>
@@ -119,7 +119,7 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(r, i) in rows" :key="r.student_id" class="border-t border-[rgb(63,69,87)]">
+            <tr v-for="(r, i) in rows" :key="r.student_id" class="border-t border-[rgba(127,127,127,0.28)]">
               <td class="px-12px py-6px font-medium">{{ r.rank ?? '—' }}</td>
               <td class="px-12px py-6px opacity-80">{{ r.student_no }}</td>
               <td class="px-12px py-6px">{{ r.name }}</td>

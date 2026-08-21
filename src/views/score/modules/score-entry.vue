@@ -149,9 +149,9 @@ onMounted(async () => {
       <div v-else-if="roster.length === 0" class="py-32px">
         <NEmpty description="本学期暂无在读学生" />
       </div>
-      <div v-else class="max-h-560px overflow-auto rounded-6px border border-[rgb(63,69,87)]">
+      <div v-else class="max-h-560px overflow-auto rounded-6px border border-[rgba(127,127,127,0.28)]">
         <table class="w-full text-14px">
-          <thead class="sticky top-0 z-1 bg-[rgb(38,45,64)]">
+          <thead class="sticky top-0 z-1 bg-[rgba(127,127,127,0.14)]">
             <tr>
               <th class="w-60px px-12px py-8px text-left font-medium">#</th>
               <th class="w-120px px-12px py-8px text-left font-medium">学号</th>
@@ -160,7 +160,11 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(s, i) in roster" :key="s.id" class="border-t border-[rgb(63,69,87)] hover:bg-[rgb(38,45,64)]">
+            <tr
+              v-for="(s, i) in roster"
+              :key="s.id"
+              class="border-t border-[rgba(127,127,127,0.28)] hover:bg-[rgba(127,127,127,0.14)]"
+            >
               <td class="px-12px py-6px opacity-60">{{ i + 1 }}</td>
               <td class="px-12px py-6px opacity-80">{{ s.student_no }}</td>
               <td class="px-12px py-6px">{{ s.name }}</td>
@@ -170,7 +174,7 @@ onMounted(async () => {
                   :data-idx="i"
                   :disabled="isArchived"
                   placeholder="缺"
-                  class="w-120px rounded-4px border border-[rgb(63,69,87)] bg-transparent px-8px py-4px text-14px outline-none focus:border-primary"
+                  class="w-120px rounded-4px border border-[rgba(127,127,127,0.28)] bg-transparent px-8px py-4px text-14px outline-none focus:border-primary"
                   :class="cellClass(inputs[s.id])"
                   @input="inputs = { ...inputs, [s.id]: ($event.target as HTMLInputElement).value }"
                   @keydown="handleKey($event, i)"

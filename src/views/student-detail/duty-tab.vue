@@ -64,9 +64,9 @@ onMounted(async () => {
           <NTag size="small" type="warning" :bordered="false">一般 {{ stats.ok }}</NTag>
           <NTag size="small" type="error" :bordered="false">差 {{ stats.poor }}</NTag>
         </div>
-        <div class="max-h-420px overflow-auto rounded-6px border border-[rgb(63,69,87)]">
+        <div class="max-h-420px overflow-auto rounded-6px border border-[rgba(127,127,127,0.28)]">
           <table class="w-full text-14px">
-            <thead class="sticky top-0 bg-[rgb(38,45,64)]">
+            <thead class="sticky top-0 bg-[rgba(127,127,127,0.14)]">
               <tr>
                 <th class="w-110px px-12px py-8px text-left font-medium">日期</th>
                 <th class="w-90px px-12px py-8px text-left font-medium">区域</th>
@@ -77,7 +77,7 @@ onMounted(async () => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in records" :key="r.id" class="border-t border-[rgb(63,69,87)]">
+              <tr v-for="r in records" :key="r.id" class="border-t border-[rgba(127,127,127,0.28)]">
                 <td class="px-12px py-6px opacity-80">{{ r.date }}</td>
                 <td class="px-12px py-6px">{{ r.area }}</td>
                 <td class="px-12px py-6px">{{ r.group_name ?? '—' }}</td>

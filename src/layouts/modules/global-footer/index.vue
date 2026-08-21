@@ -6,9 +6,7 @@ defineOptions({
 
 <template>
   <DarkModeContainer class="h-full flex-center">
-    <a href="https://github.com/soybeanjs/soybean-admin/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">
-      Copyright MIT © 2021 Soybean
-    </a>
+    <span class="text-12px opacity-60">homeroom · 数据完全留在本机</span>
   </DarkModeContainer>
 </template>
 

@@ -4,6 +4,7 @@ import type { DataTableColumns, UploadFileInfo } from 'naive-ui';
 import { NButton, NTag } from 'naive-ui';
 import { useSemesterStore } from '@/store/modules/semester';
 import { repo } from '@/repo';
+import { todayStr } from '@/utils/date';
 import type { DocumentAttachment, DocumentInput, DocumentRecord } from '@/repo';
 
 defineOptions({
@@ -118,15 +119,10 @@ const modalShow = ref(false);
 const editingId = ref<string | null>(null);
 const saving = ref(false);
 
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-
 const form = ref({
   title: '',
   category: '通知',
-  date: today(),
+  date: todayStr(),
   summary: '',
   attachment: null as DocumentAttachment | null,
   /** 编辑时原有附件（未更换则保留） */
@@ -135,7 +131,7 @@ const form = ref({
 
 function handleAdd() {
   editingId.value = null;
-  form.value = { title: '', category: '通知', date: today(), summary: '', attachment: null, keepAttachment: false };
+  form.value = { title: '', category: '通知', date: todayStr(), summary: '', attachment: null, keepAttachment: false };
   modalShow.value = true;
 }
 

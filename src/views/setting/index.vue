@@ -5,6 +5,7 @@ import { NButton, NTag } from 'naive-ui';
 import { useSemesterStore } from '@/store/modules/semester';
 import { useStudentStore } from '@/store/modules/student';
 import { repo } from '@/repo';
+import { todayStr } from '@/utils/date';
 import { downloadBackup, readBackupFile } from '@/utils/backup';
 
 defineOptions({
@@ -116,11 +117,6 @@ function handleArchive(row: import('@/repo').Semester, archived: boolean) {
 const modalShow = ref(false);
 const saving = ref(false);
 const formRef = ref<FormInst | null>(null);
-
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 
 const form = ref({
   id: '',

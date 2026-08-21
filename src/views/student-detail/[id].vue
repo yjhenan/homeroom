@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import dayjs from 'dayjs';
 import { useRoute } from 'vue-router';
 import { attendanceStatusLabel, attendedStatuses, genderLabel } from '@/constants/business';
 import { useSemesterStore } from '@/store/modules/semester';
 import { repo } from '@/repo';
 import type { Attendance, Student } from '@/repo';
+import { todayStr, workdaysBetween } from '@/utils/date';
 import HistoryTab from '../attendance/modules/history-tab.vue';
 import AttendanceCalendar from './attendance-calendar.vue';
 import ScoresTab from './scores-tab.vue';
@@ -37,16 +39,8 @@ const stats = computed(() => {
 const expectedDays = computed(() => {
   const sem = semesterStore.activeSemester;
   if (!sem) return 0;
-  const DAY = 86_400_000;
-  const startMs = new Date(`${sem.start_date}T00:00:00`).getTime();
-  const stopMs = Math.min(Date.now(), new Date(`${sem.end_date}T00:00:00`).getTime());
-  if (stopMs < startMs) return 0;
-  let days = 0;
-  for (let t = startMs; t <= stopMs; t += DAY) {
-    const dow = new Date(t).getDay();
-    if (dow >= 1 && dow <= 5) days += 1;
-  }
-  return days;
+  const stop = dayjs().isBefore(dayjs(sem.end_date), 'day') ? todayStr() : sem.end_date;
+  return workdaysBetween(sem.start_date, stop);
 });
 
 /** 缺记录天数 = 应出勤 - 已记录（>0 提醒补录，出勤率口径注明"按已记录"） */

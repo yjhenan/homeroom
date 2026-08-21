@@ -3,20 +3,17 @@
  *
  * 依赖来自 cdn.sheetjs.com 官方源（npm 上的 xlsx 停更于 2022，勿改）
  */
+import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
-import { genderLabel } from '@/constants/business';
+import { genderEnum, genderLabel } from '@/constants/business';
 import type { Gender, StudentInput, StudentWithEnrollment } from '@/repo';
+import { dateStampStr } from '@/utils/date';
 
 /** 模板列头（与 docs/03 对齐；* 为必填） */
 const TEMPLATE_HEADERS = ['学号*', '姓名*', '性别', '出生日期', '家长电话', '住址', '备注'];
 
-/** 性别单元格可接受写法 */
-const GENDER_CELL_MAP: Record<string, Gender> = {
-  男: 'male',
-  女: 'female',
-  未知: 'unknown',
-  '': 'unknown'
-};
+/** 性别单元格可接受写法（枚举反查 + 留空） */
+const GENDER_CELL_MAP: Record<string, Gender> = { ...genderEnum.value, '': 'unknown' };
 
 /** 行级错误：row 为 Excel 实际行号（表头第 1 行，数据从第 2 行起） */
 export interface RowError {
@@ -56,7 +53,7 @@ export function exportStudents(students: StudentWithEnrollment[]) {
   ws['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 16 }, { wch: 24 }, { wch: 24 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '学生名单');
-  XLSX.writeFile(wb, `学生名单_${dateStamp()}.xlsx`);
+  XLSX.writeFile(wb, `学生名单_${dateStampStr()}.xlsx`);
 }
 
 /**
@@ -160,17 +157,5 @@ function normalizeDateCell(formatted: string, raw: unknown): string | null {
 }
 
 function formatDate(d: Date): string | null {
-  if (Number.isNaN(d.getTime())) return null;
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${mo}-${day}`;
-}
-
-function dateStamp(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}${mo}${day}`;
+  return d && Number.isFinite(d.getTime()) ? dayjs(d).format('YYYY-MM-DD') : null;
 }

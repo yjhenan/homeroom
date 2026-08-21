@@ -6,6 +6,7 @@ import { disciplineCategoryOptions, disciplineDirectionLabel } from '@/constants
 import { useSemesterStore } from '@/store/modules/semester';
 import { useStudentStore } from '@/store/modules/student';
 import { repo } from '@/repo';
+import { todayStr } from '@/utils/date';
 import type { DisciplineDirection, DisciplineEvent, DisciplineFilter } from '@/repo';
 
 defineOptions({
@@ -18,14 +19,9 @@ const studentStore = useStudentStore();
 const isArchived = computed(() => semesterStore.activeSemester?.archived === true);
 
 // ---- 快速新增 ----
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-
 const form = ref({
   student_ids: [] as string[],
-  date: today(),
+  date: todayStr(),
   direction: 'minus' as DisciplineDirection,
   category: '纪律',
   points: null as number | null,

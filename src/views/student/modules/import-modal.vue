@@ -127,7 +127,7 @@ async function handleImport() {
       <NAlert type="error" :bordered="false" class="mb-12px">
         {{ fileName }} 有 {{ rowErrors.length }} 处问题，全部列出如下。修正后重新上传。
       </NAlert>
-      <div class="max-h-320px overflow-auto rounded-4px bg-[rgb(18,22,33)] p-8px">
+      <div class="max-h-320px overflow-auto rounded-4px bg-[rgba(127,127,127,0.08)] p-8px">
         <div v-for="e in rowErrors" :key="`${e.row}-${e.message}`" class="py-2px">
           <NTag size="small" type="error" :bordered="false" class="mr-8px">第 {{ e.row }} 行</NTag>
           <span>{{ e.message }}</span>

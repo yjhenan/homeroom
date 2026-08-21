@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import dayjs from 'dayjs';
 import { dutyAreaOptions, dutyEvaluationLabel, dutyEvaluationTagType } from '@/constants/business';
 import { useSemesterStore } from '@/store/modules/semester';
 import { useStudentStore } from '@/store/modules/student';
 import { repo } from '@/repo';
 import type { DutyEvaluation, DutyInput, DutyRecord } from '@/repo';
+import { mondayOfStr, todayStr } from '@/utils/date';
 
 defineOptions({
   name: 'Duty'
@@ -16,42 +18,25 @@ const studentStore = useStudentStore();
 const isArchived = computed(() => semesterStore.activeSemester?.archived === true);
 
 // ---- 周 ----
-const toDay = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-/** 本周一 */
-function mondayOf(d: Date): Date {
-  const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const day = (copy.getDay() + 6) % 7; // 周一=0
-  copy.setDate(copy.getDate() - day);
-  return copy;
-}
-
-const weekStart = ref(mondayOf(new Date()));
+const weekStart = ref(mondayOfStr());
 
 const weekDays = computed(() => {
-  const days: { date: string; label: string; weekday: string }[] = [];
   const names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-  for (let i = 0; i < 7; i += 1) {
-    const d = new Date(weekStart.value);
-    d.setDate(d.getDate() + i);
-    days.push({ date: toDay(d), label: `${d.getMonth() + 1}/${d.getDate()}`, weekday: names[i] });
-  }
-  return days;
+  const start = dayjs(weekStart.value);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = start.add(i, 'day');
+    return { date: d.format('YYYY-MM-DD'), label: d.format('M/D'), weekday: names[i] };
+  });
 });
 
 const weekTitle = computed(() => `${weekDays.value[0].date} ~ ${weekDays.value[6].date}`);
 
 function prevWeek() {
-  const d = new Date(weekStart.value);
-  d.setDate(d.getDate() - 7);
-  weekStart.value = d;
+  weekStart.value = dayjs(weekStart.value).subtract(7, 'day').format('YYYY-MM-DD');
 }
 
 function nextWeek() {
-  const d = new Date(weekStart.value);
-  d.setDate(d.getDate() + 7);
-  weekStart.value = d;
+  weekStart.value = dayjs(weekStart.value).add(7, 'day').format('YYYY-MM-DD');
 }
 
 // ---- 数据 ----
@@ -103,17 +88,13 @@ async function load() {
 const modalShow = ref(false);
 const saving = ref(false);
 const editForm = ref<DutyInput & { id?: string }>({
-  date: today(),
+  date: todayStr(),
   group_name: '',
   student_ids: [],
   area: '教室',
   evaluation: 'ok',
   remark: ''
 });
-
-function today() {
-  return toDay(new Date());
-}
 
 const studentOptions = computed(() =>
   studentStore.students
@@ -186,20 +167,20 @@ async function copyLastWeek() {
   if (!semesterStore.activeSemesterId || copying.value) return;
   copying.value = true;
   try {
-    const prevStart = new Date(weekStart.value);
-    prevStart.setDate(prevStart.getDate() - 7);
-    const prevEnd = new Date(prevStart);
-    prevEnd.setDate(prevEnd.getDate() + 6);
-    const prev = await repo.listDutyRecords(semesterStore.activeSemesterId, toDay(prevStart), toDay(prevEnd));
+    const prevStart = dayjs(weekStart.value).subtract(7, 'day');
+    const prevEnd = prevStart.add(6, 'day');
+    const prev = await repo.listDutyRecords(
+      semesterStore.activeSemesterId,
+      prevStart.format('YYYY-MM-DD'),
+      prevEnd.format('YYYY-MM-DD')
+    );
 
     const existKey = new Set(records.value.map(r => `${r.date}|${r.area}`));
     let copied = 0;
     for (let i = 0; i < 7; i += 1) {
-      const d = new Date(weekStart.value);
-      d.setDate(d.getDate() + i);
-      const targetDate = toDay(d);
+      const targetDate = dayjs(weekStart.value).add(i, 'day').format('YYYY-MM-DD');
       prev
-        .filter(r => r.date === toDay(new Date(prevStart.getTime() + i * 86400000)))
+        .filter(r => r.date === prevStart.add(i, 'day').format('YYYY-MM-DD'))
         .forEach(async r => {
           if (existKey.has(`${targetDate}|${r.area}`)) return;
           await repo.saveDutyRecord(
@@ -269,7 +250,7 @@ onMounted(async () => {
           <div
             v-for="day in weekDays"
             :key="day.date"
-            class="min-h-160px rounded-6px border border-[rgb(63,69,87)] p-8px"
+            class="min-h-160px rounded-6px border border-[rgba(127,127,127,0.28)] p-8px"
           >
             <div class="mb-8px flex items-center justify-between">
               <span class="text-13px font-medium">{{ day.weekday }} {{ day.label }}</span>

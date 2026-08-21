@@ -6,6 +6,7 @@ import { useStudentStore } from '@/store/modules/student';
 import { repo } from '@/repo';
 import type { AttendanceInput, AttendanceStatus } from '@/repo';
 import { attendanceStatusLabel, attendanceTagType, nextAttendanceStatus } from '@/constants/business';
+import { todayStr } from '@/utils/date';
 import RemarkDrawer from './remark-drawer.vue';
 
 defineOptions({
@@ -17,12 +18,7 @@ const studentStore = useStudentStore();
 
 const isArchived = computed(() => semesterStore.activeSemester?.archived === true);
 
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-
-const date = ref<string>(today());
+const date = ref<string>(todayStr());
 /** 当前编辑态：student_id → { status, remark } */
 const statuses = ref<Record<string, { status: AttendanceStatus; remark?: string }>>({});
 /** 加载完成时的快照，用于脏比较（必须响应式：isDirty computed 依赖它，普通变量不会触发重算） */
@@ -94,7 +90,7 @@ function handleRemark(studentId: string, remark: string) {
 }
 
 async function handleDateChange(value: string | [string, string] | null) {
-  const next = typeof value === 'string' ? value : today();
+  const next = typeof value === 'string' ? value : todayStr();
   if (next === date.value) return;
   if (!(await confirmDiscard())) return;
   date.value = next;
@@ -213,7 +209,7 @@ onBeforeUnmount(() => {
         <div
           v-for="s in roster"
           :key="s.id"
-          class="att-card flex cursor-pointer items-center justify-between gap-8px rounded-6px border border-[rgb(63,69,87)] bg-[rgb(30,36,51)] px-12px py-10px transition-colors hover:border-primary"
+          class="att-card flex cursor-pointer items-center justify-between gap-8px rounded-6px border border-[rgba(127,127,127,0.28)] bg-[rgb(var(--container-bg-color))] px-12px py-10px transition-colors hover:border-primary"
           :class="statusOf(s.id) !== 'present' ? 'border-warning' : ''"
           @click="cycleStatus(s.id)"
         >
