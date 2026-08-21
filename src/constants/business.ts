@@ -1,4 +1,12 @@
-import type { AttendanceStatus, Enrollment, ExamType, Gender, Student } from '@/repo';
+import type {
+  AttendanceStatus,
+  DisciplineDirection,
+  DutyEvaluation,
+  Enrollment,
+  ExamType,
+  Gender,
+  Student
+} from '@/repo';
 
 /** 枚举中文标签（UI 文案层；DTO 值本身为英文枚举，便于排序与导出） */
 
@@ -47,6 +55,27 @@ export const examTypeOptions = (Object.keys(examTypeLabel) as ExamType[]).map(va
 
 /** 常用科目（录入页可自由输入其它） */
 export const commonSubjects = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理'];
+
+export const disciplineDirectionLabel: Record<DisciplineDirection, string> = {
+  plus: '加分',
+  minus: '扣分'
+};
+
+export const disciplineCategoryOptions = ['纪律', '卫生', '文明', '助人', '其他'].map(v => ({ label: v, value: v }));
+
+export const dutyAreaOptions = ['教室', '包干区', '其他'].map(v => ({ label: v, value: v }));
+
+export const dutyEvaluationLabel: Record<DutyEvaluation, string> = {
+  good: '好',
+  ok: '一般',
+  poor: '差'
+};
+
+export const dutyEvaluationTagType: Record<DutyEvaluation, 'success' | 'warning' | 'error'> = {
+  good: 'success',
+  ok: 'warning',
+  poor: 'error'
+};
 
 /** 出勤率口径：到校即出勤（present/late/early_leave 计入分子） */
 export const attendedStatuses: AttendanceStatus[] = ['present', 'late', 'early_leave'];
