@@ -19,7 +19,7 @@ describe('假期管理', () => {
 
     await repo.setSemesterHolidays(sem.id, ['2026-10-01', '2026-09-30']);
     let list = (await repo.listSemesters()).find(s => s.id === sem.id)!.holidays;
-    expect(list).toEqual(['2026-09-30', '2026-10-01'], '应排序保存');
+    expect(list, '应排序保存').toEqual(['2026-09-30', '2026-10-01']);
 
     await repo.setSemesterHolidays(sem.id, []);
     list = (await repo.listSemesters()).find(s => s.id === sem.id)!.holidays;
