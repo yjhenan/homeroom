@@ -6,7 +6,7 @@
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import { genderEnum, genderLabel } from '@/constants/business';
-import type { Gender, StudentInput, StudentWithEnrollment } from '@/repo';
+import type { Gender, Score, StudentInput, StudentWithEnrollment } from '@/repo';
 import { dateStampStr } from '@/utils/date';
 
 /** 模板列头（与 docs/03 对齐；* 为必填） */
@@ -36,6 +36,76 @@ export function downloadStudentTemplate() {
 }
 
 /** 导出当前列表（已含筛选）为 xlsx */
+export interface ScoreSheetSubject {
+  name: string;
+  /** 满分（表头显示为「语文(满分120)」；未配置不显示） */
+  full?: number;
+}
+
+export interface ScoreSheetInput {
+  examName: string;
+  date: string;
+  subjects: ScoreSheetSubject[];
+  roster: { id: string; student_no: string; name: string }[];
+  /** 该考试全部成绩（含各科目） */
+  scores: Score[];
+}
+
+/** 导出成绩单：学号/姓名 × 各科 + 总分/名次 + 班级均分行；缺考显示「缺」 */
+export function exportScoreSheet(input: ScoreSheetInput) {
+  const { examName, date, subjects, roster, scores } = input;
+
+  const byStudent = new Map<string, Record<string, number | null>>();
+  scores.forEach(s => {
+    const rec = byStudent.get(s.student_id) ?? {};
+    rec[s.subject] = s.score;
+    byStudent.set(s.student_id, rec);
+  });
+
+  const rows = roster.map(stu => {
+    const rec = byStudent.get(stu.id) ?? {};
+    const total = subjects.reduce((sum, sub) => sum + (rec[sub.name] ?? 0), 0);
+    const recorded = subjects.some(sub => rec[sub.name] !== undefined);
+    return { stu, rec, total, recorded };
+  });
+
+  const head = ['学号', '姓名', ...subjects.map(s => (s.full ? `${s.name}(满分${s.full})` : s.name)), '总分', '名次'];
+  const body = rows.map(({ stu, rec, total, recorded }) => [
+    stu.student_no,
+    stu.name,
+    ...subjects.map(sub => {
+      const v = rec[sub.name];
+      return v === undefined ? '—' : v === null ? '缺' : v;
+    }),
+    recorded ? total : '—',
+    recorded ? '' : '—'
+  ]);
+
+  // 名次（总分并列取最小；未录学生不排名）
+  const ranked = rows.filter(r => r.recorded);
+  ranked.forEach(r => {
+    const rank = ranked.filter(x => x.total > r.total).length + 1;
+    const idx = rows.indexOf(r);
+    body[idx][body[idx].length - 1] = rank;
+  });
+
+  // 班级均分行
+  const avgRow: (string | number)[] = ['班级均分', ''];
+  subjects.forEach(sub => {
+    const vals = scores.filter(s => s.subject === sub.name && s.score !== null).map(s => s.score as number);
+    avgRow.push(vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100 : '—');
+  });
+  const totals = ranked.map(r => r.total);
+  avgRow.push(totals.length ? Math.round((totals.reduce((a, b) => a + b, 0) / totals.length) * 100) / 100 : '—', '');
+  body.push(avgRow);
+
+  const ws = XLSX.utils.aoa_to_sheet([head, ...body]);
+  ws['!cols'] = [{ wch: 10 }, { wch: 10 }, ...subjects.map(() => ({ wch: 10 })), { wch: 8 }, { wch: 6 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '成绩单');
+  XLSX.writeFile(wb, `成绩单_${examName}_${date}.xlsx`);
+}
+
 export function exportStudents(students: StudentWithEnrollment[]) {
   const aoa = [TEMPLATE_HEADERS.map(h => h.replace('*', ''))];
   students.forEach(s => {

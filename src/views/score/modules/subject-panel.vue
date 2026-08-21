@@ -10,17 +10,20 @@ defineOptions({
   name: 'ScoreSubjectPanel'
 });
 
-const props = defineProps<{
-  examId: string;
-  subject: string;
-  roster: StudentWithEnrollment[];
-  archived: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    examId: string;
+    subject: string;
+    roster: StudentWithEnrollment[];
+    archived: boolean;
+    /** 及格线（考试科目配置，默认 60） */
+    passLine?: number;
+  }>(),
+  { passLine: 60 }
+);
 
 const emit = defineEmits<{
   saved: [];
-  /** 科目被删除（父级刷新考试列表并退出该 Tab） */
-  removed: [];
 }>();
 
 /** 编辑态：student_id -> 文本（空/缺 = 缺考） */
@@ -54,7 +57,7 @@ const strip = computed(() => {
     validSum += v;
     if (v > max) max = v;
     if (v < min) min = v;
-    if (v >= 60) pass += 1;
+    if (v >= props.passLine) pass += 1;
   });
   return {
     entered: validN,
@@ -168,25 +171,6 @@ function handlePasteApply(values: (number | null)[]) {
   pasteShow.value = false;
 }
 
-/** 删除本科目（含全部成绩） */
-function handleRemoveSubject() {
-  window.$dialog?.warning({
-    title: '删除科目',
-    content: `将删除「${props.subject}」科目及其全部成绩（含缺考记录），不可恢复。确认删除？`,
-    positiveText: '删除',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      try {
-        const r = await repo.deleteScoresBySubject(props.examId, props.subject);
-        window.$message?.success(`已删除「${props.subject}」（含成绩 ${r} 条）`);
-        emit('removed');
-      } catch (err) {
-        window.$message?.error(err instanceof Error ? err.message : '删除失败');
-      }
-    }
-  });
-}
-
 watch(
   () => [props.examId, props.subject],
   () => load()
@@ -223,9 +207,9 @@ onMounted(() => load());
         <b>{{ strip.min }}</b>
       </span>
       <NTag v-if="isDirty" size="small" type="warning" :bordered="false">未保存</NTag>
+      <NTag v-if="passLine !== 60" size="small" :bordered="false">及格线 {{ passLine }}</NTag>
       <div class="ml-auto flex items-center gap-12px">
         <span class="text-13px opacity-60">空或「缺」= 缺考；Tab 切换到下一行</span>
-        <NButton v-if="!archived" size="small" quaternary type="error" @click="handleRemoveSubject">删除科目</NButton>
         <NButton size="small" :disabled="archived || !examId" @click="pasteShow = true">粘贴成绩列</NButton>
         <NButton
           size="small"

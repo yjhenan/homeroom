@@ -11,6 +11,7 @@ import { useStudentStore } from '@/store/modules/student';
 import { exportStudents } from '@/utils/excel';
 import StudentModal from './modules/student-modal.vue';
 import ImportModal from './modules/import-modal.vue';
+import ContextMenu from '@/components/common/context-menu.vue';
 
 defineOptions({
   name: 'Student'
@@ -26,6 +27,36 @@ const modalShow = ref(false);
 const editingStudent = ref<StudentWithEnrollment | null>(null);
 const saving = ref(false);
 const importShow = ref(false);
+
+/** 行右键菜单：详情 / 编辑 / 删除 */
+const menuRow = ref<StudentWithEnrollment | null>(null);
+const rowMenuRef = ref<InstanceType<typeof ContextMenu> | null>(null);
+const rowMenuOptions = [
+  { label: '详情', key: 'detail' },
+  { label: '编辑', key: 'edit' },
+  { label: '删除', key: 'delete' }
+];
+
+function handleRowMenu(key: string | number) {
+  const row = menuRow.value;
+  if (!row) return;
+  if (key === 'detail') {
+    handleDetail(row);
+  } else if (key === 'edit') {
+    handleEdit(row);
+  } else if (key === 'delete') {
+    handleDelete(row);
+  }
+}
+
+function rowProps(row: StudentWithEnrollment) {
+  return {
+    onContextmenu: (e: MouseEvent) => {
+      menuRow.value = row;
+      rowMenuRef.value?.open(e);
+    }
+  };
+}
 
 const semesterName = computed(() => semesterStore.activeSemester?.name ?? '');
 
@@ -68,31 +99,7 @@ const columns: DataTableColumns<StudentWithEnrollment> = [
     key: 'birth_date',
     render: row => row.birth_date || '—'
   },
-  { title: '备注', key: 'notes', ellipsis: { tooltip: true }, render: row => row.notes || '—' },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 180,
-    align: 'center',
-    render: row =>
-      h('div', { class: 'flex justify-center gap-8px' }, [
-        h(
-          NButton,
-          { size: 'small', quaternary: true, type: 'primary', onClick: () => handleDetail(row) },
-          { default: () => '详情' }
-        ),
-        h(
-          NButton,
-          { size: 'small', quaternary: true, type: 'primary', onClick: () => handleEdit(row) },
-          { default: () => '编辑' }
-        ),
-        h(
-          NButton,
-          { size: 'small', quaternary: true, type: 'error', onClick: () => handleDelete(row) },
-          { default: () => '删除' }
-        )
-      ])
-  }
+  { title: '备注', key: 'notes', ellipsis: { tooltip: true }, render: row => row.notes || '—' }
 ];
 
 const statusOptions = [
@@ -189,6 +196,12 @@ function handleExport() {
           <NButton @click="importShow = true">导入</NButton>
           <NButton :disabled="filteredStudents.length === 0" @click="handleExport">导出</NButton>
           <NButton type="primary" @click="handleAdd">新增学生</NButton>
+          <NTooltip placement="bottom">
+            <template #trigger>
+              <NButton quaternary size="small">行操作？</NButton>
+            </template>
+            右键学生行：详情 / 编辑 / 删除
+          </NTooltip>
         </div>
       </div>
       <NDataTable
@@ -196,9 +209,11 @@ function handleExport() {
         :data="filteredStudents"
         :loading="studentStore.loading"
         :row-key="(row: StudentWithEnrollment) => row.id"
+        :row-props="rowProps"
         :max-height="560"
         @update:sorter="handleSorterChange"
       />
+      <ContextMenu ref="rowMenuRef" :options="rowMenuOptions" @select="handleRowMenu" />
     </NCard>
     <StudentModal v-model:show="modalShow" :student="editingStudent" :saving="saving" @save="handleSave" />
     <ImportModal v-model:show="importShow" :semester-id="semesterStore.activeSemesterId ?? ''" @refreshed="refresh" />

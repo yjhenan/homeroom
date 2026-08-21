@@ -119,6 +119,14 @@ export interface AttendanceQuery {
 
 export type ExamType = 'daily' | 'monthly' | 'midterm' | 'final';
 
+/** 科目满分/及格线（未配置按 100/60 兜底） */
+export interface SubjectConf {
+  /** 满分（展示与导出用，不做硬校验） */
+  full: number;
+  /** 及格线（及格率统计用） */
+  pass: number;
+}
+
 /** 考试 */
 export interface Exam {
   id: string;
@@ -126,8 +134,10 @@ export interface Exam {
   name: string;
   date: string;
   type: ExamType;
-  /** 该考试已录入的科目（录入页下拉用） */
+  /** 该考试已录入的科目（录入页 Tab 用） */
   subjects: string[];
+  /** 科目 → 满分/及格线（M3+；老数据视为全空走默认） */
+  subject_conf?: Record<string, SubjectConf>;
   created_at: string;
 }
 
@@ -136,6 +146,7 @@ export interface ExamInput {
   date: string;
   type: ExamType;
   subjects?: string[];
+  subject_conf?: Record<string, SubjectConf>;
 }
 
 /** 单科成绩；score null = 缺考 */
