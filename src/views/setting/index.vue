@@ -269,7 +269,7 @@ onMounted(async () => {
 
 <template>
   <NSpace vertical :size="16">
-    <!-- 学期管理 -->
+    <!-- 学期管理（含当前学期假期） -->
     <NCard :bordered="false" class="card-wrapper" title="学期管理">
       <template #header-extra>
         <NButton size="small" type="primary" @click="openCreate">新建学期</NButton>
@@ -284,14 +284,11 @@ onMounted(async () => {
       <div class="mt-8px text-13px opacity-60">
         归档后学期全模块只读；新建学期可从已有学期复制在读名册。切换学期用顶栏切换器。
       </div>
-    </NCard>
 
-    <!-- 数据 -->
-    <!-- 假期（当前学期） -->
-    <NCard :bordered="false" class="card-wrapper" title="假期管理">
-      <template #header-extra>
-        <NText depth="3" class="text-13px">作用于：{{ semesterStore.activeSemester?.name ?? '—' }}</NText>
-      </template>
+      <!-- 假期（当前学期） -->
+      <NDivider class="!my-12px">
+        <span class="text-14px">当前学期假期</span>
+      </NDivider>
       <div class="flex flex-wrap items-center gap-12px">
         <NDatePicker
           v-model:formatted-value="newHoliday"
@@ -300,16 +297,20 @@ onMounted(async () => {
           clearable
           class="w-170px"
         />
-        <NButton :disabled="!newHoliday" :loading="holidaySaving" @click="addHoliday">添加假期</NButton>
-        <NText depth="3" class="text-13px">假期日不计入「应出勤工作日」，360 视图的缺记录提醒会相应减少</NText>
+        <NButton size="small" :disabled="!newHoliday" :loading="holidaySaving" @click="addHoliday">添加</NButton>
+        <NText depth="3" class="text-13px">
+          作用于「{{ semesterStore.activeSemester?.name ?? '—' }}」：假期日不计入应出勤工作日
+        </NText>
       </div>
-      <div v-if="holidayList.length" class="mt-12px flex flex-wrap gap-8px">
+      <div v-if="holidayList.length" class="mt-8px flex flex-wrap gap-8px">
         <NTag v-for="d in holidayList" :key="d" closable size="small" @close="removeHoliday(d)">
           {{ d }}
         </NTag>
       </div>
-      <NEmpty v-else description="未设置假期（按周一~周五估算应出勤）" size="small" class="mt-8px" />
+      <NText v-else depth="3" class="mt-8px block text-13px">未设置假期（按周一~周五估算应出勤）</NText>
     </NCard>
+
+    <!-- 数据 -->
 
     <NCard :bordered="false" class="card-wrapper" title="数据备份">
       <div class="flex flex-wrap items-center gap-12px">

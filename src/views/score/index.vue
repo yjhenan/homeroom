@@ -161,8 +161,11 @@ onMounted(async () => {
     </div>
 
     <template v-if="selectedExam">
-      <!-- 科目 Tab -->
+      <!-- 总表在前 + 科目 Tab；＋科目收进 Tab suffix -->
       <NTabs v-model:value="activeTab" type="line" animated>
+        <NTabPane name="__matrix" tab="总表" display-directive="show:lazy">
+          <MatrixPanel :exam-id="selectedExamId ?? ''" :subjects="subjects" :roster="roster" :version="dataVersion" />
+        </NTabPane>
         <NTabPane v-for="sub in subjects" :key="sub" :name="`subj:${sub}`" :tab="sub" display-directive="show">
           <SubjectPanel
             :exam-id="selectedExamId ?? ''"
@@ -172,40 +175,37 @@ onMounted(async () => {
             @saved="handleSaved"
           />
         </NTabPane>
-        <NTabPane name="__matrix" tab="总表" display-directive="show:lazy">
-          <MatrixPanel :exam-id="selectedExamId ?? ''" :subjects="subjects" :roster="roster" :version="dataVersion" />
-        </NTabPane>
-      </NTabs>
-
-      <!-- ＋科目 -->
-      <NPopover v-model:show="addShow" trigger="click" placement="bottom">
-        <template #trigger>
-          <NButton size="small" dashed :disabled="isArchived" class="mt-8px">＋ 科目</NButton>
+        <template #suffix>
+          <NPopover v-model:show="addShow" trigger="click" placement="bottom">
+            <template #trigger>
+              <NButton size="small" quaternary type="primary" :disabled="isArchived">＋ 科目</NButton>
+            </template>
+            <div class="w-280px">
+              <div class="mb-8px text-13px opacity-70">输入或点选新增科目</div>
+              <NInputGroup>
+                <NInput
+                  v-model:value="newSubject"
+                  placeholder="如 语文"
+                  size="small"
+                  @keyup.enter="addSubject(newSubject)"
+                />
+                <NButton type="primary" size="small" @click="addSubject(newSubject)">添加</NButton>
+              </NInputGroup>
+              <div class="mt-8px flex flex-wrap gap-6px">
+                <NTag
+                  v-for="s in commonSubjects.filter(x => !subjects.includes(x))"
+                  :key="s"
+                  size="small"
+                  class="cursor-pointer"
+                  @click="addSubject(s)"
+                >
+                  {{ s }}
+                </NTag>
+              </div>
+            </div>
+          </NPopover>
         </template>
-        <div class="w-280px">
-          <div class="mb-8px text-13px opacity-70">输入或点选新增科目</div>
-          <NInputGroup>
-            <NInput
-              v-model:value="newSubject"
-              placeholder="如 语文"
-              size="small"
-              @keyup.enter="addSubject(newSubject)"
-            />
-            <NButton type="primary" size="small" @click="addSubject(newSubject)">添加</NButton>
-          </NInputGroup>
-          <div class="mt-8px flex flex-wrap gap-6px">
-            <NTag
-              v-for="s in commonSubjects.filter(x => !subjects.includes(x))"
-              :key="s"
-              size="small"
-              class="cursor-pointer"
-              @click="addSubject(s)"
-            >
-              {{ s }}
-            </NTag>
-          </div>
-        </div>
-      </NPopover>
+      </NTabs>
     </template>
 
     <NEmpty v-else description="先新建或选择一场考试，再添加科目录入成绩" class="py-48px" />

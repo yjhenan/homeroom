@@ -21,8 +21,6 @@ const emit = defineEmits<{
   saved: [];
 }>();
 
-const semesterStore = useSemesterStore();
-
 /** 编辑态：student_id -> 文本（空/缺 = 缺考） */
 const inputs = ref<Record<string, string>>({});
 const snapshot = ref('');
@@ -38,10 +36,6 @@ function normalize(v: string | undefined): number | null {
   if (t === '' || t === '缺' || t === '缺考') return null;
   const n = Number(t);
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
-}
-
-function isAbsent(v: string | undefined): boolean {
-  return normalize(v) === null;
 }
 
 /** 实时统计（含未保存的输入） */
@@ -98,7 +92,6 @@ const columns = computed<DataTableColumns<Row>>(() => [
     render: r =>
       h('input', {
         value: inputs.value[r.student.id] ?? '',
-        'data-row': String(r.idx),
         disabled: props.archived,
         placeholder: '缺',
         class:
@@ -106,8 +99,7 @@ const columns = computed<DataTableColumns<Row>>(() => [
           cellClass(inputs.value[r.student.id]),
         onInput: (e: Event) => {
           inputs.value = { ...inputs.value, [r.student.id]: (e.target as HTMLInputElement).value };
-        },
-        onKeydown: (e: KeyboardEvent) => handleKey(e, r.idx)
+        }
       })
   },
   {
@@ -126,18 +118,6 @@ function cellClass(v: string | undefined): string {
   if (t === '缺' || t === '缺考') return 'text-warning';
   if (t === '') return '';
   return Number.isFinite(Number(t)) ? '' : 'text-error';
-}
-
-/** 回车/↓ 下移、↑ 上移；Tab 走浏览器自然顺序 */
-function handleKey(e: KeyboardEvent, index: number) {
-  if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-  e.preventDefault();
-  const delta = e.key === 'ArrowUp' ? -1 : 1;
-  const next = index + delta;
-  if (next < 0 || next >= props.roster.length) return;
-  const el = document.querySelector<HTMLInputElement>(`input[data-row="${next}"]`);
-  el?.focus();
-  el?.select();
 }
 
 const rows = computed<Row[]>(() => props.roster.map((student, idx) => ({ student, idx })));
@@ -222,7 +202,19 @@ onMounted(() => load());
         <b>{{ strip.min }}</b>
       </span>
       <NTag v-if="isDirty" size="small" type="warning" :bordered="false">未保存</NTag>
-      <span class="ml-auto text-13px opacity-60">空或「缺」= 缺考；回车/↓ 下一行，↑ 上一行，Tab 顺序切换</span>
+      <div class="ml-auto flex items-center gap-12px">
+        <span class="text-13px opacity-60">空或「缺」= 缺考；Tab 切换到下一行</span>
+        <NButton size="small" :disabled="archived || !examId" @click="pasteShow = true">粘贴成绩列</NButton>
+        <NButton
+          size="small"
+          type="primary"
+          :loading="saving"
+          :disabled="archived || !examId || roster.length === 0"
+          @click="handleSave"
+        >
+          保存
+        </NButton>
+      </div>
     </div>
 
     <NDataTable
@@ -233,19 +225,6 @@ onMounted(() => load());
       max-height="480"
       size="small"
     />
-
-    <div class="mt-12px flex items-center gap-12px">
-      <NButton :disabled="archived || !examId" @click="pasteShow = true">粘贴成绩列</NButton>
-      <NButton
-        type="primary"
-        :loading="saving"
-        :disabled="archived || !examId || roster.length === 0"
-        class="ml-auto"
-        @click="handleSave"
-      >
-        保存
-      </NButton>
-    </div>
 
     <PasteModal v-model:show="pasteShow" :roster-size="roster.length" @apply="handlePasteApply" />
   </div>
