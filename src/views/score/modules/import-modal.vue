@@ -74,9 +74,11 @@ function handleClose() {
   emit('update:show', false);
 }
 
-/** 下载模板：学号 + 姓名 + 常用科目 */
+/** 下载模板：学号 + 姓名 + 常用科目，且预填当前名册（在 Excel 里直接填分数即可） */
 function downloadTemplate() {
-  const ws = XLSX.utils.aoa_to_sheet([['学号', '姓名', ...commonSubjects.slice(0, 3)]]);
+  const headers = ['学号', '姓名', ...commonSubjects.slice(0, 3)];
+  const body = roster.value.map(s => [s.student_no, s.name, '', '', '']);
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...body]);
   ws['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '成绩表');

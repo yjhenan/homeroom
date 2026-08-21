@@ -526,6 +526,24 @@ export class DexieClassRepo implements ClassRepo {
     return this.db.scores.where('exam_id').equals(examId).toArray();
   }
 
+  async deleteScoresBySubject(examId: string, subject: string): Promise<number> {
+    return this.db.transaction('rw', [this.db.semesters, this.db.exams, this.db.scores], async () => {
+      const exam = await this.db.exams.get(examId);
+      if (!exam) {
+        throw new Error(`考试不存在: ${examId}`);
+      }
+      await assertSemesterWritable(this.db, exam.semester_id);
+
+      const prev = await this.db.scores.where('exam_id').equals(examId).toArray();
+      const ids = prev.filter(s => s.subject === subject).map(s => s.id);
+      if (ids.length) {
+        await this.db.scores.bulkDelete(ids);
+      }
+      await this.db.exams.update(examId, { subjects: exam.subjects.filter(s => s !== subject) });
+      return ids.length;
+    });
+  }
+
   async getScoresByStudent(semesterId: string, studentId: string): Promise<Score[]> {
     const rows = await this.db.scores
       .where('student_id')

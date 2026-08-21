@@ -319,6 +319,8 @@ export interface ClassRepo {
   getScoresByStudent(semesterId: string, studentId: string): Promise<Score[]>;
   /** 某考试全部成绩（总表用） */
   getScoresByExam(examId: string): Promise<Score[]>;
+  /** 删除某考试某科目全部成绩并从 exam.subjects 移除，返回删除条数（录错科目清理用） */
+  deleteScoresBySubject(examId: string, subject: string): Promise<number>;
 
   // ---- 德育 ----
   listDisciplineEvents(semesterId: string, filter?: DisciplineFilter): Promise<DisciplineEvent[]>;

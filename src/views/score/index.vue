@@ -134,6 +134,13 @@ function handleSaved() {
   dataVersion.value += 1;
 }
 
+/** 科目被删除：刷新考试（subjects 变了），退出该 Tab 回总表 */
+async function handleSubjectRemoved() {
+  handleSaved();
+  activeTab.value = '__matrix';
+  await loadExams();
+}
+
 watch(
   () => semesterStore.activeSemesterId,
   async () => {
@@ -184,6 +191,7 @@ onMounted(async () => {
             :roster="roster"
             :archived="isArchived"
             @saved="handleSaved"
+            @removed="handleSubjectRemoved"
           />
         </NTabPane>
         <template #suffix>
