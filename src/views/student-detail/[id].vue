@@ -7,6 +7,9 @@ import { repo } from '@/repo';
 import type { Attendance, Student } from '@/repo';
 import HistoryTab from '../attendance/modules/history-tab.vue';
 import AttendanceCalendar from './attendance-calendar.vue';
+import ScoresTab from './scores-tab.vue';
+import DisciplineTab from './discipline-tab.vue';
+import DutyTab from './duty-tab.vue';
 
 defineOptions({
   name: 'StudentDetail'
@@ -107,14 +110,14 @@ onMounted(async () => {
           <NDivider>考勤记录</NDivider>
           <HistoryTab :student-id="studentId" />
         </NTabPane>
-        <NTabPane name="scores" tab="成绩" disabled>
-          <NEmpty description="成绩模块 M3 提供" class="py-24px" />
+        <NTabPane name="scores" tab="成绩" display-directive="show:lazy">
+          <ScoresTab :student-id="studentId" />
         </NTabPane>
-        <NTabPane name="discipline" tab="德育" disabled>
-          <NEmpty description="德育模块 M3 提供" class="py-24px" />
+        <NTabPane name="discipline" tab="德育" display-directive="show:lazy">
+          <DisciplineTab :student-id="studentId" />
         </NTabPane>
-        <NTabPane name="duty" tab="值日" disabled>
-          <NEmpty description="值日模块 M3 提供" class="py-24px" />
+        <NTabPane name="duty" tab="值日" display-directive="show:lazy">
+          <DutyTab :student-id="studentId" />
         </NTabPane>
       </NTabs>
     </NCard>
