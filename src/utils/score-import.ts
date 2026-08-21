@@ -28,10 +28,23 @@ const META_HEADERS = ['总分', '总评', '平均分', '均分', '名次', '排�
 const NO_HEADERS = ['学号', '学生学号'];
 const NAME_HEADERS = ['姓名', '学生姓名', '名字'];
 
-/** 单元格分数解析：空/缺/缺考 → null；数字 → 两位小数；其它 → NaN（非法） */
-export function parseScoreCell(raw: string): number | null | typeof NaN {
+/** 导出的成绩单末行汇总标记（导入时跳过） */
+const SUMMARY_ROW_KEYS = ['班级均分', '平均分', '均分', '平均值'];
+
+/** 表头满分后缀：语文(满分120) / 语文（满分120） → 语文 */
+const FULL_SUFFIX = /^(.+?)[(（]满分\d+[)）]$/;
+
+/**
+ * 单元格分数解析：
+ * - 空/缺/缺考 → null（缺考）
+ * - —/－/- （导出文件的"未录入"占位）→ undefined（跳过，保留库内已有值）
+ * - 数字 → 两位小数
+ * - 其它 → NaN（非法）
+ */
+export function parseScoreCell(raw: string): number | null | undefined | typeof NaN {
   const t = raw.trim();
   if (t === '' || t === '缺' || t === '缺考') return null;
+  if (/^[—－-]+$/.test(t)) return undefined;
   const n = Number(t);
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : NaN;
 }
@@ -59,18 +72,21 @@ export function buildScoreImportPlan(headers: string[], rows: string[][], roster
   }
   const nameIdx = headers.findIndex(h => NAME_HEADERS.includes(h));
 
-  result.subjects = headers
+  // 科目识别：去「(满分N)」后缀后参与匹配（导出成绩单可无损导回）
+  const subjectColumns = headers
     .map((h, i) => ({ h, i }))
     .filter(({ h, i }) => h !== '' && i !== noIdx && i !== nameIdx && !META_HEADERS.includes(h))
     .filter(({ h }) => !NO_HEADERS.includes(h) && !NAME_HEADERS.includes(h))
-    .map(({ h }) => h);
+    .map(({ h, i }) => ({ name: h.replace(FULL_SUFFIX, '$1'), header: h, i }));
+
+  // 同名科目（语文 与 语文(满分120) 并存）只保留前者
+  result.subjects = Array.from(new Set(subjectColumns.map(c => c.name)));
   result.ignoredHeaders = headers.filter(h => META_HEADERS.includes(h));
 
   if (result.subjects.length === 0) {
     result.errors.push({ row: 0, message: '未识别到科目列（学号/姓名/总分 之外的列才是科目）' });
     return result;
   }
-  const subjectIdx = result.subjects.map(sub => headers.indexOf(sub));
   result.subjects.forEach(sub => {
     result.scores[sub] = {};
   });
@@ -84,6 +100,8 @@ export function buildScoreImportPlan(headers: string[], rows: string[][], roster
     if (!rowText.trim()) return; // 整行空跳过
 
     const no = (cells[noIdx] ?? '').trim();
+    // 导出成绩单的末行汇总（班级均分行）：学号列写着汇总标记，跳过
+    if (SUMMARY_ROW_KEYS.includes(no)) return;
     if (!no) {
       result.errors.push({ row: rowNo, message: '学号缺失' });
       return;
@@ -111,14 +129,17 @@ export function buildScoreImportPlan(headers: string[], rows: string[][], roster
       }
     }
 
-    result.subjects.forEach((sub, si) => {
-      const raw = cells[subjectIdx[si]] ?? '';
+    subjectColumns.forEach(col => {
+      const raw = cells[col.i] ?? '';
       const score = parseScoreCell(raw);
       if (Number.isNaN(score)) {
-        result.errors.push({ row: rowNo, message: `「${sub}」成绩「${raw}」无法识别（数字 / 空 / 缺）` });
+        result.errors.push({ row: rowNo, message: `「${col.name}」成绩「${raw}」无法识别（数字 / 空 / 缺）` });
         return;
       }
-      result.scores[sub][student.id] = score;
+      // undefined = 导出文件的「未录入」占位（—），跳过不写 → 合并时保留库内已有成绩
+      if (score !== undefined) {
+        result.scores[col.name][student.id] = score;
+      }
     });
   });
 

@@ -15,6 +15,9 @@ describe('parseScoreCell', () => {
     expect(parseScoreCell('')).toBeNull();
     expect(parseScoreCell('缺')).toBeNull();
     expect(parseScoreCell('缺考')).toBeNull();
+    expect(parseScoreCell('—')).toBeUndefined();
+    expect(parseScoreCell('－')).toBeUndefined();
+    expect(parseScoreCell('-')).toBeUndefined();
     expect(parseScoreCell('92')).toBe(92);
     expect(parseScoreCell('92.455')).toBe(92.46);
     expect(Number.isNaN(parseScoreCell('优秀'))).toBe(true);
@@ -65,6 +68,23 @@ describe('buildScoreImportPlan', () => {
     expect(plan.warnings.length).toBe(1);
     expect(plan.warnings[0].message).toMatch(/名册为「张三」/);
     expect(plan.scores['语文'].s1).toBe(90);
+  });
+
+  it('往返闭环：导出的成绩单可无损导回（满分后缀表头 / — 占位 / 班级均分行）', () => {
+    const exportHeaders = ['学号', '姓名', '语文', '数学(满分120)', '总分', '名次'];
+    const exportRows = [
+      ['001', '张三', '90', '78', '168', '1'],
+      ['002', '李四', '缺', '—', '', ''], // 数学未录入（—），语文缺考
+      ['班级均分', '', '90', '78', '168', ''] // 汇总行应跳过
+    ];
+    const plan = buildScoreImportPlan(exportHeaders, exportRows, roster);
+    expect(plan.errors).toEqual([]);
+    expect(plan.subjects).toEqual(['语文', '数学']);
+    expect(plan.scores['语文'].s1).toBe(90);
+    expect(plan.scores['语文'].s2).toBeNull(); // 缺考
+    expect(plan.scores['数学'].s1).toBe(78);
+    expect(plan.scores['数学'].s2).toBeUndefined(); // — 占位：保留库内已有，不写缺考
+    expect(plan.matchedCount).toBe(2);
   });
 
   it('缺学号列 / 无科目列 → 表头错误', () => {

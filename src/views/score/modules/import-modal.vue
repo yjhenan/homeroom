@@ -111,13 +111,15 @@ async function handleImport() {
   try {
     let totalScores = 0;
     for (const sub of plan.value.subjects) {
-      // 合并语义：表中未出现的学生保留库内已有成绩
+      // 合并语义：表中未出现的学生保留库内已有成绩；两者皆无则不写记录（保持"未录入"而非缺考）
       const existing = await repo.getScoresBySubject(props.examId, sub);
       const existingMap = new Map(existing.map(s => [s.student_id, s.score]));
-      const rowsToSave = roster.value.map(s => ({
-        student_id: s.id,
-        score: plan.value!.scores[sub][s.id] ?? existingMap.get(s.id) ?? null
-      }));
+      const rowsToSave = roster.value
+        .filter(s => plan.value!.scores[sub][s.id] !== undefined || existingMap.has(s.id))
+        .map(s => ({
+          student_id: s.id,
+          score: plan.value!.scores[sub][s.id] ?? existingMap.get(s.id) ?? null
+        }));
       await repo.saveScoresForSubject(props.examId, sub, rowsToSave);
       totalScores += rowsToSave.length;
     }
