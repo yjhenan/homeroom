@@ -23,14 +23,8 @@ const studentStore = useStudentStore();
 const toDay = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-/** 默认查整个学期（当前真实日期可能早于学期开始，取"至今"会出现 from>to 空集） */
-const defaultRange = (): [string, string] => {
-  const sem = semesterStore.activeSemester;
-  const today = toDay(new Date());
-  return [sem?.start_date ?? today, sem?.end_date ?? today];
-};
-
-const range = ref<[string, string] | null>(defaultRange());
+/** 默认不限日期：录入日期可能落在学期范围外（开学前试录/假期补录），限定范围反而查不到 */
+const range = ref<[string, string] | null>(null);
 const studentFilter = ref<string | null>(props.studentId ?? null);
 const statusFilter = ref<AttendanceStatus[] | null>(null);
 const loading = ref(false);
@@ -74,7 +68,6 @@ const columns: DataTableColumns<HistoryRow> = [
   {
     title: '学生',
     key: 'student_name',
-    width: 160,
     render: row => `${row.student_name}（${row.student_no}）`
   },
   {
@@ -116,7 +109,7 @@ watch([range, studentFilter, statusFilter], () => load());
 watch(
   () => semesterStore.activeSemesterId,
   () => {
-    range.value = defaultRange();
+    range.value = null;
     load();
   }
 );
@@ -162,7 +155,13 @@ onMounted(async () => {
       共 {{ rows.length }} 条，异常 {{ rows.filter(r => r.status !== 'present').length }} 条
     </span>
   </div>
+  <NEmpty
+    v-if="!loading && rows.length === 0"
+    description="暂无考勤记录：去「录入」页选日期保存一次即产生记录"
+    class="py-32px"
+  />
   <NDataTable
+    v-else
     :columns="columns"
     :data="rows"
     :loading="loading"

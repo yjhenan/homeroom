@@ -15,6 +15,8 @@ defineOptions({
 const semesterStore = useSemesterStore();
 const studentStore = useStudentStore();
 
+const isArchived = computed(() => semesterStore.activeSemester?.archived === true);
+
 const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -79,6 +81,7 @@ function statusOf(studentId: string): AttendanceStatus {
 
 /** 点选循环：出勤 → 病假 → 事假 → 旷课 → 迟到 → 早退 → 出勤 */
 function cycleStatus(studentId: string) {
+  if (isArchived.value) return;
   const next = nextAttendanceStatus(statusOf(studentId));
   const cur = statuses.value[studentId] ?? { status: 'present' as AttendanceStatus };
   statuses.value = { ...statuses.value, [studentId]: { ...cur, status: next } };
@@ -178,6 +181,7 @@ onBeforeUnmount(() => {
         {{ savedCount > 0 ? `已录入 ${savedCount} 条` : '未录入' }}
       </NTag>
       <NTag v-if="isDirty" size="small" type="warning" :bordered="false">未保存</NTag>
+      <NTag v-if="isArchived" size="small" type="warning" :bordered="false">学期已归档，只读</NTag>
 
       <div class="ml-auto flex items-center gap-12px">
         <NDatePicker
@@ -189,7 +193,9 @@ onBeforeUnmount(() => {
           @update:formatted-value="handleDateChange"
         />
         <NButton @click="drawerShow = true">备注 ({{ abnormalCount }})</NButton>
-        <NButton type="primary" :loading="saving" :disabled="!isDirty" @click="handleSave">保存</NButton>
+        <NButton type="primary" :loading="saving" :disabled="isArchived || roster.length === 0" @click="handleSave">
+          {{ isDirty ? '保存' : savedCount > 0 ? '重新保存' : '全勤，直接保存' }}
+        </NButton>
       </div>
     </div>
 
@@ -223,7 +229,8 @@ onBeforeUnmount(() => {
     </NSpin>
 
     <div class="mt-12px text-13px opacity-60">
-      点击卡片循环切换：出勤 → 病假 → 事假 → 旷课 → 迟到 → 早退 → 出勤；默认全员出勤，只点异常。
+      点击卡片循环切换：出勤 → 病假 → 事假 → 旷课 → 迟到 → 早退 →
+      出勤。默认全员出勤：全勤日直接点「保存」落库即可，只点异常学生。
     </div>
 
     <RemarkDrawer v-model:show="drawerShow" :roster="roster" :statuses="statuses" @remark="handleRemark" />

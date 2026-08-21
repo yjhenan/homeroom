@@ -113,7 +113,8 @@ async function handleSave() {
       require-mark-placement="right-hanging"
     >
       <NFormItem label="学号" path="student_no">
-        <NInput v-model:value="form.student_no" placeholder="如 2026001" :disabled="isEdit" />
+        <NInput v-model:value="form.student_no" placeholder="如 2026001" />
+        <template #feedback>可修改；Excel 导入按学号匹配，改后以新学号为准</template>
       </NFormItem>
       <NFormItem label="姓名" path="name">
         <NInput v-model:value="form.name" placeholder="必填" />

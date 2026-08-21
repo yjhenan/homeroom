@@ -107,17 +107,15 @@ const summary = computed(() => {
 });
 
 const columns: DataTableColumns<Row> = [
-  { title: '日期', key: 'date', width: 110 },
+  { title: '日期', key: 'date' },
   {
     title: '学生',
     key: 'student_name',
-    width: 150,
     render: row => `${row.student_name}（${row.student_no}）`
   },
   {
     title: '方向',
     key: 'direction',
-    width: 80,
     render: row =>
       h(
         NTag,
@@ -125,13 +123,12 @@ const columns: DataTableColumns<Row> = [
         { default: () => disciplineDirectionLabel[row.direction] }
       )
   },
-  { title: '分类', key: 'category', width: 90 },
-  { title: '分值', key: 'points', width: 80, render: row => (row.points === undefined ? '—' : row.points) },
+  { title: '分类', key: 'category' },
+  { title: '分值', key: 'points', render: row => (row.points === undefined ? '—' : row.points) },
   { title: '描述', key: 'description', ellipsis: { tooltip: true } },
   {
     title: '操作',
     key: 'actions',
-    width: 80,
     align: 'center',
     render: row =>
       h(

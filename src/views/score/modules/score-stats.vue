@@ -93,7 +93,7 @@ onMounted(async () => {
 <template>
   <div>
     <div v-if="!examId || !subject" class="py-32px">
-      <NEmpty description="先选择考试与科目" />
+      <NEmpty description="先在上方 ② 选择考试、③ 选择科目" />
     </div>
     <template v-else>
       <div v-if="summary" class="mb-16px flex flex-wrap gap-24px">

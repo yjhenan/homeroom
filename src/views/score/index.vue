@@ -34,7 +34,7 @@ const subjectOptions = computed(() => {
 });
 
 const examColumns: DataTableColumns<Exam> = [
-  { title: '名称', key: 'name', width: 160 },
+  { title: '名称', key: 'name' },
   { title: '日期', key: 'date', width: 110 },
   {
     title: '类型',
@@ -167,22 +167,30 @@ onMounted(async () => {
 
 <template>
   <NCard :bordered="false" class="card-wrapper">
+    <!-- 使用步骤 -->
+    <NAlert type="info" :bordered="false" class="mb-12px">
+      用法：① 点「新建考试」（名称/日期/类型）→ ② 在下方选择考试 → ③ 选择或输入科目（如"语文"）→ ④
+      在「录入」页填成绩或点「粘贴成绩列」从 Excel 整列粘贴 → ⑤ 切到「统计」看均分/及格率/名次。
+    </NAlert>
+
     <!-- 考试选择与新建 -->
     <div class="mb-16px flex flex-wrap items-center gap-12px">
+      <span class="text-14px opacity-70">② 考试：</span>
       <NSelect
         v-model:value="selectedExamId"
         :options="exams.map(e => ({ label: `${e.name}（${e.date}）`, value: e.id }))"
         placeholder="选择考试"
-        class="w-260px"
+        class="w-240px"
         filterable
       />
-      <NButton :disabled="isArchived" @click="handleAdd">新建考试</NButton>
+      <NButton type="primary" :disabled="isArchived" @click="handleAdd">① 新建考试</NButton>
       <NDivider vertical />
+      <span class="text-14px opacity-70">③ 科目：</span>
       <NSelect
         v-model:value="selectedSubject"
         :options="subjectOptions"
-        placeholder="选择/输入科目"
-        class="w-170px"
+        placeholder="选择或输入科目"
+        class="w-160px"
         filterable
         tag
         :disabled="!selectedExamId"
@@ -193,7 +201,7 @@ onMounted(async () => {
     </div>
 
     <NDivider class="!my-8px">
-      <NButton size="tiny" quaternary type="primary" @click="loadExams">考试列表（{{ exams.length }}）</NButton>
+      <NButton size="tiny" quaternary type="primary" @click="loadExams">已建考试（{{ exams.length }}）</NButton>
     </NDivider>
     <NDataTable
       :columns="examColumns"
@@ -205,10 +213,10 @@ onMounted(async () => {
     />
 
     <NTabs type="line" animated>
-      <NTabPane name="entry" tab="录入" display-directive="show:lazy">
+      <NTabPane name="entry" tab="④ 录入成绩" display-directive="show:lazy">
         <ScoreEntry :exam-id="selectedExamId ?? ''" :subject="selectedSubject ?? ''" />
       </NTabPane>
-      <NTabPane name="stats" tab="统计" display-directive="show:lazy">
+      <NTabPane name="stats" tab="⑤ 统计" display-directive="show:lazy">
         <ScoreStats :exam-id="selectedExamId ?? ''" :subject="selectedSubject ?? ''" />
       </NTabPane>
     </NTabs>

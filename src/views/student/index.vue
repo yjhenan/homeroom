@@ -40,8 +40,8 @@ const filteredStudents = computed(() => {
 });
 
 const columns: DataTableColumns<StudentWithEnrollment> = [
-  { title: '学号', key: 'student_no', width: 120, sorter: 'default' },
-  { title: '姓名', key: 'name', width: 120, sorter: 'default' },
+  { title: '学号', key: 'student_no', width: 110, sorter: 'default' },
+  { title: '姓名', key: 'name', sorter: 'default' },
   {
     title: '性别',
     key: 'gender',
@@ -62,11 +62,10 @@ const columns: DataTableColumns<StudentWithEnrollment> = [
       );
     }
   },
-  { title: '家长电话', key: 'parent_contact', width: 140, render: row => row.parent_contact || '—' },
+  { title: '家长电话', key: 'parent_contact', render: row => row.parent_contact || '—' },
   {
     title: '出生日期',
     key: 'birth_date',
-    width: 120,
     render: row => row.birth_date || '—'
   },
   { title: '备注', key: 'notes', ellipsis: { tooltip: true }, render: row => row.notes || '—' },

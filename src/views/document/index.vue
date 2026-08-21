@@ -35,7 +35,7 @@ const filtered = computed(() => {
 
 const columns: DataTableColumns<DocumentRecord> = [
   { title: '日期', key: 'date', width: 110, sorter: 'default' },
-  { title: '标题', key: 'title', width: 220, ellipsis: { tooltip: true } },
+  { title: '标题', key: 'title', ellipsis: { tooltip: true } },
   {
     title: '分类',
     key: 'category',
@@ -195,7 +195,8 @@ async function handleSave() {
       category: form.value.category,
       date: form.value.date,
       ...(form.value.summary.trim() ? { summary: form.value.summary } : {}),
-      ...(form.value.attachment ? { attachment: form.value.attachment } : {})
+      // 必须浅拷贝成普通对象：ref 里读出的是 Vue reactive Proxy，IndexedDB structured clone 会抛 DataCloneError
+      ...(form.value.attachment ? { attachment: { ...form.value.attachment } } : {})
     };
 
     if (editingId.value) {

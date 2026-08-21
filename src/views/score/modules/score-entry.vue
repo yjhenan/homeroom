@@ -144,7 +144,7 @@ onMounted(async () => {
 
     <NSpin :show="loading">
       <div v-if="!examId || !subject" class="py-32px">
-        <NEmpty description="先选择考试与科目" />
+        <NEmpty description="先在上方 ② 选择考试、③ 选择科目" />
       </div>
       <div v-else-if="roster.length === 0" class="py-32px">
         <NEmpty description="本学期暂无在读学生" />

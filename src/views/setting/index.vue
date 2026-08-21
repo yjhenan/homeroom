@@ -18,8 +18,8 @@ const loading = ref(false);
 
 // ---- 学期管理 ----
 const columns: DataTableColumns<import('@/repo').Semester> = [
-  { title: '学期', key: 'name', width: 200 },
-  { title: '起止', key: 'range', width: 210, render: row => `${row.start_date} ~ ${row.end_date}` },
+  { title: '学期', key: 'name' },
+  { title: '起止', key: 'range', render: row => `${row.start_date} ~ ${row.end_date}` },
   {
     title: '状态',
     key: 'status',

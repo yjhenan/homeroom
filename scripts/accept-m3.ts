@@ -24,7 +24,11 @@ async function main() {
   // ---- 造数据：3 学生 + 每模块一条（学期一）----
   await page.goto(`${BASE}/student`, { waitUntil: 'networkidle' });
   await page.waitForSelector('text=新增学生', { timeout: 20000 });
-  for (const [no, nm] of [['990001', '验收A'], ['990002', '验收B'], ['990003', '验收C']] as const) {
+  for (const [no, nm] of [
+    ['990001', '验收A'],
+    ['990002', '验收B'],
+    ['990003', '验收C']
+  ] as const) {
     await page.click('button:has-text("新增学生")');
     await page.waitForSelector('.n-modal input[placeholder="如 2026001"]', { timeout: 5000 });
     await page.fill('.n-modal input[placeholder="如 2026001"]', no);

@@ -33,6 +33,25 @@ const stats = computed(() => {
   return { total, attended, rate, counts };
 });
 
+/** 应出勤天数：学期开始~今天之间的工作日（周一~周五），开学前/假期按 0 */
+const expectedDays = computed(() => {
+  const sem = semesterStore.activeSemester;
+  if (!sem) return 0;
+  const DAY = 86_400_000;
+  const startMs = new Date(`${sem.start_date}T00:00:00`).getTime();
+  const stopMs = Math.min(Date.now(), new Date(`${sem.end_date}T00:00:00`).getTime());
+  if (stopMs < startMs) return 0;
+  let days = 0;
+  for (let t = startMs; t <= stopMs; t += DAY) {
+    const dow = new Date(t).getDay();
+    if (dow >= 1 && dow <= 5) days += 1;
+  }
+  return days;
+});
+
+/** 缺记录天数 = 应出勤 - 已记录（>0 提醒补录，出勤率口径注明"按已记录"） */
+const missingDays = computed(() => Math.max(0, expectedDays.value - stats.value.total));
+
 const statItems = computed(() =>
   (Object.keys(attendanceStatusLabel) as (keyof typeof attendanceStatusLabel)[]).map(st => ({
     label: attendanceStatusLabel[st],
@@ -95,11 +114,18 @@ onMounted(async () => {
       <NTabs type="line" animated>
         <NTabPane name="attendance" tab="考勤" display-directive="show:lazy">
           <div class="mb-16px flex flex-wrap items-center gap-16px">
-            <NStatistic label="出勤率" :value="stats.rate ?? '—'">
+            <NStatistic label="出勤率（按已记录）" :value="stats.rate ?? '—'">
               <template #suffix>%</template>
             </NStatistic>
             <NStatistic label="已记录天数" :value="stats.total" />
             <NStatistic label="到校天数" :value="stats.attended" />
+            <NStatistic label="应出勤工作日" :value="expectedDays" />
+            <NStatistic label="缺记录" :value="missingDays">
+              <template #suffix>天</template>
+            </NStatistic>
+            <NTag v-if="missingDays > 0" type="warning" size="small" :bordered="false">
+              有 {{ missingDays }} 个工作日未录考勤
+            </NTag>
             <div class="ml-auto flex flex-wrap gap-8px">
               <NTag v-for="it in statItems" :key="it.label" :bordered="false" size="small">
                 {{ it.label }} {{ it.count }}
