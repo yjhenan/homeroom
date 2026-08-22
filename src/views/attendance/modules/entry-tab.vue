@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import dayjs from 'dayjs';
 import { onBeforeRouteLeave } from 'vue-router';
 import { useSemesterStore } from '@/store/modules/semester';
 import { useStudentStore } from '@/store/modules/student';
@@ -18,7 +19,19 @@ const studentStore = useStudentStore();
 
 const isArchived = computed(() => semesterStore.activeSemester?.archived === true);
 
-const date = ref<string>(todayStr());
+/** 考勤日期必须落在学期内：默认今天，学期未开始/已结束则钳到最近边界 */
+const semRange = computed(() => {
+  const sem = semesterStore.activeSemester;
+  return { start: sem?.start_date ?? '0000-01-01', end: sem?.end_date ?? '9999-12-31' };
+});
+
+function clampToSemester(d: string): string {
+  if (d < semRange.value.start) return semRange.value.start;
+  if (d > semRange.value.end) return semRange.value.end;
+  return d;
+}
+
+const date = ref<string>(clampToSemester(todayStr()));
 /** 当前编辑态：student_id → { status, remark } */
 const statuses = ref<Record<string, { status: AttendanceStatus; remark?: string }>>({});
 /** 加载完成时的快照，用于脏比较（必须响应式：isDirty computed 依赖它，普通变量不会触发重算） */
@@ -89,6 +102,12 @@ function handleRemark(studentId: string, remark: string) {
   statuses.value = { ...statuses.value, [studentId]: { ...cur, ...(remark ? { remark } : {}) } };
 }
 
+/** 日期选择器禁用学期范围外 */
+function isDateOutOfSemester(ts: number) {
+  const key = dayjs(ts).format('YYYY-MM-DD');
+  return key < semRange.value.start || key > semRange.value.end;
+}
+
 async function handleDateChange(value: string | [string, string] | null) {
   const next = typeof value === 'string' ? value : todayStr();
   if (next === date.value) return;
@@ -150,6 +169,7 @@ watch(
   async (next, prev) => {
     if (next && next !== prev) {
       // 学期切换视为新页面上下文；脏修改直接放弃（顶部学期切换本身有明确动作语义）
+      date.value = clampToSemester(date.value);
       await loadDate(date.value);
     }
   }
@@ -185,6 +205,7 @@ onBeforeUnmount(() => {
           type="date"
           value-format="yyyy-MM-dd"
           :clearable="false"
+          :is-date-disabled="isDateOutOfSemester"
           class="w-160px"
           @update:formatted-value="handleDateChange"
         />

@@ -6,7 +6,7 @@ import { attendanceStatusLabel, attendedStatuses, genderLabel } from '@/constant
 import { useSemesterStore } from '@/store/modules/semester';
 import { repo } from '@/repo';
 import type { Attendance, Student } from '@/repo';
-import { todayStr, workdaysBetween } from '@/utils/date';
+import { calendarOf, todayStr, workdaysBetween } from '@/utils/date';
 import HistoryTab from '../attendance/modules/history-tab.vue';
 import AttendanceCalendar from './attendance-calendar.vue';
 import ScoresTab from './scores-tab.vue';
@@ -25,12 +25,19 @@ const student = ref<Student | null>(null);
 const records = ref<Attendance[]>([]);
 const loading = ref(false);
 
+/** 学期范围内的记录（历史遗留的范围外数据不进统计，列表照常展示） */
+const inRangeRecords = computed(() => {
+  const sem = semesterStore.activeSemester;
+  if (!sem) return records.value;
+  return records.value.filter(r => r.date >= sem.start_date && r.date <= sem.end_date);
+});
+
 /** 出勤率 = 到校天数（present/late/early_leave） / 已记录天数 */
 const stats = computed(() => {
   const counts = new Map<string, number>();
-  records.value.forEach(r => counts.set(r.status, (counts.get(r.status) ?? 0) + 1));
-  const total = records.value.length;
-  const attended = records.value.filter(r => attendedStatuses.includes(r.status)).length;
+  inRangeRecords.value.forEach(r => counts.set(r.status, (counts.get(r.status) ?? 0) + 1));
+  const total = inRangeRecords.value.length;
+  const attended = inRangeRecords.value.filter(r => attendedStatuses.includes(r.status)).length;
   const rate = total === 0 ? null : Math.round((attended / total) * 1000) / 10;
   return { total, attended, rate, counts };
 });
@@ -40,7 +47,7 @@ const expectedDays = computed(() => {
   const sem = semesterStore.activeSemester;
   if (!sem) return 0;
   const stop = dayjs().isBefore(dayjs(sem.end_date), 'day') ? todayStr() : sem.end_date;
-  return workdaysBetween(sem.start_date, stop, sem.holidays ?? []);
+  return workdaysBetween(sem.start_date, stop, calendarOf(sem));
 });
 
 /** 缺记录天数 = 应出勤 - 已记录（>0 提醒补录，出勤率口径注明"按已记录"） */

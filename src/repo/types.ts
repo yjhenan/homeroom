@@ -13,6 +13,9 @@ export type ImportConflictStrategy = 'overwrite' | 'skip';
 /** 性别 */
 export type Gender = 'male' | 'female' | 'unknown';
 
+/** 教学日历标记：holiday=工作日放假（节假日）；school=周末补课（调休） */
+export type CalendarMark = 'holiday' | 'school';
+
 /** 学期 */
 export interface Semester {
   /** 如 `2026-2027-1`（学年-学期号） */
@@ -27,6 +30,8 @@ export interface Semester {
   archived?: boolean;
   /** 假期日期列表（YYYY-MM-DD，非索引字段）；应出勤工作日计算时排除 */
   holidays?: string[];
+  /** 教学日历覆盖表（M3+）：周一~五默认上课、周末默认休息；holiday=工作日放假，school=周末补课 */
+  calendar?: Record<string, CalendarMark>;
 }
 
 export interface SemesterInput {
@@ -287,8 +292,8 @@ export interface ClassRepo {
   setActiveSemester(id: string): Promise<void>;
   /** 归档/取消归档（归档学期全模块只读） */
   setSemesterArchived(id: string, archived: boolean): Promise<void>;
-  /** 设置学期假期列表（应出勤工作日排除这些日期；归档学期也可改，属元数据） */
-  setSemesterHolidays(id: string, holidays: string[]): Promise<void>;
+  /** 设置学期教学日历覆盖表（周一~五上课基线；归档学期也可改，属元数据） */
+  setSemesterCalendar(id: string, calendar: Record<string, CalendarMark>): Promise<void>;
   /** 把源学期在读名册复制到目标学期（已存在的跳过），返回新增条数 */
   copyRoster(fromSemesterId: string, toSemesterId: string): Promise<number>;
 

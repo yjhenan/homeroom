@@ -15,6 +15,7 @@ import type {
   DocumentRecord,
   DutyInput,
   DutyRecord,
+  CalendarMark,
   Enrollment,
   Exam,
   ExamInput,
@@ -170,12 +171,13 @@ export class DexieClassRepo implements ClassRepo {
     await this.db.semesters.update(id, { archived });
   }
 
-  async setSemesterHolidays(id: string, holidays: string[]): Promise<void> {
+  async setSemesterCalendar(id: string, calendar: Record<string, CalendarMark>): Promise<void> {
     const target = await this.db.semesters.get(id);
     if (!target) {
       throw new Error(`学期不存在: ${id}`);
     }
-    await this.db.semesters.update(id, { holidays: [...holidays].sort() });
+    // 覆盖写：旧 holidays 列表保留兼容但以 calendar 为准
+    await this.db.semesters.update(id, { calendar });
   }
 
   async copyRoster(fromSemesterId: string, toSemesterId: string): Promise<number> {
@@ -393,7 +395,15 @@ export class DexieClassRepo implements ClassRepo {
   }
 
   async saveAttendanceForDate(semesterId: string, date: string, rows: AttendanceInput[]): Promise<void> {
-    await this.db.transaction('rw', this.db.attendance, async () => {
+    await this.db.transaction('rw', [this.db.semesters, this.db.attendance], async () => {
+      const sem = await this.db.semesters.get(semesterId);
+      if (!sem) {
+        throw new Error(`学期不存在: ${semesterId}`);
+      }
+      // 考勤属于学期：范围外的日期大概率是选错学期/日期，开学前活动应调整学期起止
+      if (date < sem.start_date || date > sem.end_date) {
+        throw new Error(`日期 ${date} 不在本学期范围内（${sem.start_date} ~ ${sem.end_date}）`);
+      }
       await this.db.attendance.where('[semester_id+date]').equals([semesterId, date]).delete();
 
       const records: Attendance[] = rows.map(input => ({

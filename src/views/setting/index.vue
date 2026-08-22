@@ -7,6 +7,7 @@ import { useStudentStore } from '@/store/modules/student';
 import { repo } from '@/repo';
 import { todayStr } from '@/utils/date';
 import { downloadBackup, readBackupFile } from '@/utils/backup';
+import CalendarModal from './modules/calendar-modal.vue';
 
 defineOptions({
   name: 'Setting'
@@ -35,10 +36,15 @@ const columns: DataTableColumns<import('@/repo').Semester> = [
   {
     title: '操作',
     key: 'actions',
-    width: 220,
+    width: 280,
     align: 'center',
     render: row =>
       h('div', { class: 'flex justify-center gap-8px' }, [
+        h(
+          NButton,
+          { size: 'small', quaternary: true, onClick: () => openCalendar(row) },
+          { default: () => '教学日历' }
+        ),
         row.is_active
           ? null
           : h(
@@ -223,53 +229,24 @@ async function handleBackupImportChange(e: Event) {
 
 const lastBackupAt = ref<string | null>(null);
 
-// ---- 假期（当前学期）----
-const holidayList = ref<string[]>([]);
-const newHoliday = ref<string | null>(null);
-const holidaySaving = ref(false);
+// ---- 教学日历 ----
+const calendarShow = ref(false);
+const calendarSemester = ref<import('@/repo').Semester | null>(null);
 
-async function loadHolidays() {
-  const sem = semesterStore.activeSemester;
-  holidayList.value = [...(sem?.holidays ?? [])];
-}
-
-async function addHoliday() {
-  const d = newHoliday.value;
-  if (!d || holidayList.value.includes(d)) return;
-  holidayList.value = [...holidayList.value, d].sort();
-  newHoliday.value = null;
-  await saveHolidays();
-}
-
-async function removeHoliday(d: string) {
-  holidayList.value = holidayList.value.filter(x => x !== d);
-  await saveHolidays();
-}
-
-async function saveHolidays() {
-  if (!semesterStore.activeSemesterId) return;
-  holidaySaving.value = true;
-  try {
-    await repo.setSemesterHolidays(semesterStore.activeSemesterId, holidayList.value);
-    await refreshSemesters();
-    window.$message?.success('假期已更新');
-  } catch (err) {
-    window.$message?.error(err instanceof Error ? err.message : '保存失败');
-  } finally {
-    holidaySaving.value = false;
-  }
+function openCalendar(row: import('@/repo').Semester) {
+  calendarSemester.value = row;
+  calendarShow.value = true;
 }
 
 onMounted(async () => {
   await load();
   lastBackupAt.value = await repo.getSetting<string>('lastBackupAt');
-  await loadHolidays();
 });
 </script>
 
 <template>
   <NSpace vertical :size="16">
-    <!-- 学期管理（含当前学期假期） -->
+    <!-- 学期管理 -->
     <NCard :bordered="false" class="card-wrapper" title="学期管理">
       <template #header-extra>
         <NButton size="small" type="primary" @click="openCreate">新建学期</NButton>
@@ -283,35 +260,11 @@ onMounted(async () => {
       />
       <div class="mt-8px text-13px opacity-60">
         归档后学期全模块只读；新建学期可从已有学期复制在读名册。切换学期用顶栏切换器。
+        「教学日历」按学期设置周一~五上课基线上的假期与调休补课。
       </div>
-
-      <!-- 假期（当前学期） -->
-      <NDivider class="!my-12px">
-        <span class="text-14px">当前学期假期</span>
-      </NDivider>
-      <div class="flex flex-wrap items-center gap-12px">
-        <NDatePicker
-          v-model:formatted-value="newHoliday"
-          type="date"
-          value-format="yyyy-MM-dd"
-          clearable
-          class="w-170px"
-        />
-        <NButton size="small" :disabled="!newHoliday" :loading="holidaySaving" @click="addHoliday">添加</NButton>
-        <NText depth="3" class="text-13px">
-          作用于「{{ semesterStore.activeSemester?.name ?? '—' }}」：假期日不计入应出勤工作日
-        </NText>
-      </div>
-      <div v-if="holidayList.length" class="mt-8px flex flex-wrap gap-8px">
-        <NTag v-for="d in holidayList" :key="d" closable size="small" @close="removeHoliday(d)">
-          {{ d }}
-        </NTag>
-      </div>
-      <NText v-else depth="3" class="mt-8px block text-13px">未设置假期（按周一~周五估算应出勤）</NText>
     </NCard>
 
     <!-- 数据 -->
-
     <NCard :bordered="false" class="card-wrapper" title="数据备份">
       <div class="flex flex-wrap items-center gap-12px">
         <NButton @click="handleBackupExport">导出 JSON 备份</NButton>
@@ -360,6 +313,8 @@ onMounted(async () => {
         </div>
       </template>
     </NModal>
+
+    <CalendarModal v-model:show="calendarShow" :semester="calendarSemester" @saved="refreshSemesters" />
   </NSpace>
 </template>
 
