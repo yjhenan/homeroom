@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, h, onMounted, ref } from 'vue';
 import type { DataTableColumns, FormInst, FormRules } from 'naive-ui';
-import { NButton, NTag } from 'naive-ui';
+import { NButton, NSwitch } from 'naive-ui';
 import { useSemesterStore } from '@/store/modules/semester';
 import { useStudentStore } from '@/store/modules/student';
 import { repo } from '@/repo';
 import { todayStr } from '@/utils/date';
 import { downloadBackup, readBackupFile } from '@/utils/backup';
-import CalendarModal from './modules/calendar-modal.vue';
+import CalendarPanel from './modules/calendar-panel.vue';
 
 defineOptions({
   name: 'Setting'
@@ -23,57 +23,38 @@ const columns: DataTableColumns<import('@/repo').Semester> = [
   { title: '学期', key: 'name' },
   { title: '起止', key: 'range', render: row => `${row.start_date} ~ ${row.end_date}` },
   {
-    title: '状态',
+    title: '当前',
     key: 'status',
-    width: 150,
+    width: 90,
     render: row =>
-      h('div', { class: 'flex items-center gap-4px' }, [
-        row.is_active ? h(NTag, { size: 'small', type: 'success', bordered: false }, { default: () => '当前' }) : null,
-        row.archived ? h(NTag, { size: 'small', type: 'warning', bordered: false }, { default: () => '已归档' }) : null,
-        !row.is_active && !row.archived ? h('span', { class: 'opacity-60' }, '—') : null
-      ])
+      h(NSwitch, {
+        size: 'small',
+        value: row.is_active,
+        onUpdateValue: (v: boolean) => {
+          // 只允许打开（当前学期不能直接关掉，需切换到别的学期）
+          if (v) handleSwitch(row);
+        }
+      })
+  },
+  {
+    title: '归档',
+    key: 'archived',
+    width: 90,
+    render: row =>
+      h(NSwitch, {
+        size: 'small',
+        value: row.archived,
+        disabled: row.is_active,
+        onUpdateValue: (v: boolean) => handleArchive(row, v)
+      })
   },
   {
     title: '操作',
     key: 'actions',
-    width: 280,
+    width: 120,
     align: 'center',
     render: row =>
-      h('div', { class: 'flex justify-center gap-8px' }, [
-        h(
-          NButton,
-          { size: 'small', quaternary: true, onClick: () => openCalendar(row) },
-          { default: () => '教学日历' }
-        ),
-        row.is_active
-          ? null
-          : h(
-              NButton,
-              { size: 'small', quaternary: true, type: 'primary', onClick: () => handleSwitch(row) },
-              { default: () => '切换为当前' }
-            ),
-        row.archived
-          ? h(
-              NButton,
-              {
-                size: 'small',
-                quaternary: true,
-                onClick: () => handleArchive(row, false)
-              },
-              { default: () => '取消归档' }
-            )
-          : h(
-              NButton,
-              {
-                size: 'small',
-                quaternary: true,
-                type: 'warning',
-                disabled: row.is_active,
-                onClick: () => handleArchive(row, true)
-              },
-              { default: () => '归档' }
-            )
-      ])
+      h(NButton, { size: 'small', quaternary: true, onClick: () => openCalendar(row) }, { default: () => '教学日历' })
   }
 ];
 
@@ -230,12 +211,10 @@ async function handleBackupImportChange(e: Event) {
 const lastBackupAt = ref<string | null>(null);
 
 // ---- 教学日历 ----
-const calendarShow = ref(false);
 const calendarSemester = ref<import('@/repo').Semester | null>(null);
 
 function openCalendar(row: import('@/repo').Semester) {
-  calendarSemester.value = row;
-  calendarShow.value = true;
+  calendarSemester.value = calendarSemester.value?.id === row.id ? null : row;
 }
 
 onMounted(async () => {
@@ -314,7 +293,12 @@ onMounted(async () => {
       </template>
     </NModal>
 
-    <CalendarModal v-model:show="calendarShow" :semester="calendarSemester" @saved="refreshSemesters" />
+    <CalendarPanel
+      v-if="calendarSemester"
+      :semester="calendarSemester"
+      @close="calendarSemester = null"
+      @saved="refreshSemesters"
+    />
   </NSpace>
 </template>
 

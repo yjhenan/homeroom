@@ -94,30 +94,31 @@ describe('仓储：学期学生名册考勤备份', () => {
     await repo.saveAttendanceForDate(sem.id, '2026-09-01', dayRows);
 
     let dayList = await repo.getAttendanceByDate(sem.id, '2026-09-01');
-    expect(dayList.length).toBe(40);
+    // 纯异常���储：40 人中 present（i%6===0，7 人）不落库 → 33 条异常
+    expect(dayList.length).toBe(33);
     expect(dayList.filter(r => r.status === 'late').length).toBe(7);
 
-    // 重存同一天 → 全量替换不叠加
+    // 重存同一天 → 全量替换不叠加（前 5 行含 1 个 present → 4 条异常）
     await repo.saveAttendanceForDate(sem.id, '2026-09-01', dayRows.slice(0, 5));
     dayList = await repo.getAttendanceByDate(sem.id, '2026-09-01');
-    expect(dayList.length).toBe(5);
+    expect(dayList.length).toBe(4);
 
     // 范围/学生/状态查询
     await repo.saveAttendanceForDate(sem.id, '2026-09-02', dayRows.slice(0, 10));
     await repo.saveAttendanceForDate(sem2.id, '2027-03-01', dayRows.slice(3, 6)); // 另一学期（日期不重叠，避开唯一索引）
     const range = await repo.queryAttendance({ semesterId: sem.id, from: '2026-09-01', to: '2026-09-30' });
-    expect(range.length).toBe(15); // 5 + 10，另一学期不算
+    expect(range.length).toBe(12); // 4 + 8（present 不落库），另一学期不算
     const onlyLate = await repo.queryAttendance({ semesterId: sem.id, statuses: ['late'] });
     expect(onlyLate.length > 0 && onlyLate.every(r => r.status === 'late')).toBeTruthy();
-    const oneStudent = await repo.queryAttendance({ semesterId: sem.id, studentId: dayRows[0].student_id });
-    expect(oneStudent.length).toBe(2); // 两天各一条
+    const oneStudent = await repo.queryAttendance({ semesterId: sem.id, studentId: dayRows[1].student_id });
+    expect(oneStudent.length).toBe(2); // dayRows[1]（late）两天各一条；dayRows[0]（present）不落库
 
     // ---- 备份往返（含 attendance）----
     const backup = await repo.exportAll();
     expect(backup.version).toBe(1);
     expect(backup.students.length).toBe(41);
     expect(backup.enrollments.length).toBe(44);
-    expect(backup.attendance?.length).toBe(18);
+    expect(backup.attendance?.length).toBe(15);
 
     const repo2 = createRepo(); // 新实例（同库），先清空再导入验证全量替换
     const fresh = await repo2.exportAll();
@@ -126,7 +127,7 @@ describe('仓储：学期学生名册考勤备份', () => {
     const restored = await repo2.exportAll();
     expect(restored).toEqual({ ...backup, exportedAt: restored.exportedAt });
     expect((await repo2.listStudents(sem.id)).length).toBe(41);
-    expect((await repo2.getAttendanceByDate(sem.id, '2026-09-02')).length).toBe(10);
+    expect((await repo2.getAttendanceByDate(sem.id, '2026-09-02')).length).toBe(8); // present 不落库
 
     // M1 老备份（无 attendance 字段）可导入
     await repo2.importAll({ ...JSON.parse(JSON.stringify(backup)), attendance: undefined });
@@ -134,11 +135,11 @@ describe('仓储：学期学生名册考勤备份', () => {
     // 还原数据
     await repo2.importAll(JSON.parse(JSON.stringify(backup)));
 
-    // ---- 删除学生硬删名册与考勤 ----
-    const countsBefore = await repo.countStudentRecords(dayRows[0].student_id);
+    // ---- 删除学生硬删名册与考勤（用 dayRows[1]，其考勤两天各一条）----
+    const countsBefore = await repo.countStudentRecords(dayRows[1].student_id);
     expect(countsBefore.attendance).toBe(2);
-    const removed = await repo.deleteStudent(dayRows[0].student_id);
-    expect(removed.enrollments).toBe(1); // 仅 sem 一条名册（sem2 挂的是 S001-S003）
+    const removed = await repo.deleteStudent(dayRows[1].student_id);
+    expect(removed.enrollments).toBe(2); // dayRows[1]=S002：sem 一条 + sem2（r3 导入了 S001-S003）一条
     expect(removed.attendance).toBe(2); // sem 两天各一条
     expect((await repo.listStudents()).length).toBe(40);
 

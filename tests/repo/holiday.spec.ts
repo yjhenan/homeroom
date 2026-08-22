@@ -94,8 +94,8 @@ describe('教学日历', () => {
     await expect(
       repo.saveAttendanceForDate(sem.id, '2027-01-21', [{ student_id: sid, status: 'present' }])
     ).rejects.toThrow(/不在本学期范围内/);
-    // 周末（2026-09-12 周六）在范围内：可录（校历补课场景）
-    await repo.saveAttendanceForDate(sem.id, '2026-09-12', [{ student_id: sid, status: 'present' }]);
+    // 周末（2026-09-12 周六）在范围内：可录（校历补课场景）；present 不落库，用 late 验证
+    await repo.saveAttendanceForDate(sem.id, '2026-09-12', [{ student_id: sid, status: 'late' }]);
     expect((await repo.getAttendanceByDate(sem.id, '2026-09-12')).length).toBe(1);
   });
 });

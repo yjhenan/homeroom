@@ -152,13 +152,11 @@ onMounted(async () => {
       />
     </template>
     <span v-else class="text-14px opacity-70">仅显示该学生记录</span>
-    <span class="ml-auto text-13px opacity-60">
-      共 {{ rows.length }} 条，异常 {{ rows.filter(r => r.status !== 'present').length }} 条
-    </span>
+    <span class="ml-auto text-13px opacity-60">共 {{ rows.length }} 条异常记录</span>
   </div>
   <NEmpty
     v-if="!loading && rows.length === 0"
-    description="暂无考勤记录：去「录入」页选日期保存一次即产生记录"
+    description="暂无异常记录：全员出勤的日子没有记录是正常的"
     class="py-32px"
   />
   <NDataTable

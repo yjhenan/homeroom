@@ -25,24 +25,14 @@ const student = ref<Student | null>(null);
 const records = ref<Attendance[]>([]);
 const loading = ref(false);
 
-/** 学期范围内的记录（历史遗留的范围外数据不进统计，列表照常展示） */
+/** 学期范围内的记录（历史遗留的范围外数据不���统计，列表照常展示） */
 const inRangeRecords = computed(() => {
   const sem = semesterStore.activeSemester;
   if (!sem) return records.value;
   return records.value.filter(r => r.date >= sem.start_date && r.date <= sem.end_date);
 });
 
-/** 出勤率 = 到校天数（present/late/early_leave） / 已记录天数 */
-const stats = computed(() => {
-  const counts = new Map<string, number>();
-  inRangeRecords.value.forEach(r => counts.set(r.status, (counts.get(r.status) ?? 0) + 1));
-  const total = inRangeRecords.value.length;
-  const attended = inRangeRecords.value.filter(r => attendedStatuses.includes(r.status)).length;
-  const rate = total === 0 ? null : Math.round((attended / total) * 1000) / 10;
-  return { total, attended, rate, counts };
-});
-
-/** 应出勤天数：学期开始~今天之间的工作日（周一~周五），开学前/假期按 0 */
+/** 应出勤天数：学期开始~今天之间的上课日（按教学日历推导，含调休） */
 const expectedDays = computed(() => {
   const sem = semesterStore.activeSemester;
   if (!sem) return 0;
@@ -50,8 +40,19 @@ const expectedDays = computed(() => {
   return workdaysBetween(sem.start_date, stop, calendarOf(sem));
 });
 
-/** 缺记录天数 = 应出勤 - 已记录（>0 提醒补录，出勤率口径注明"按已记录"） */
-const missingDays = computed(() => Math.max(0, expectedDays.value - stats.value.total));
+/**
+ * 出勤率（日历口径）：出勤由教学日历推导，库中只存异常
+ * - 到校 = 应出勤 - 未到校异常（病假/事假/旷课）；迟到/早退计入到校
+ * - 应出勤为 0（开学前）时无意义 → null
+ */
+const stats = computed(() => {
+  const counts = new Map<string, number>();
+  inRangeRecords.value.forEach(r => counts.set(r.status, (counts.get(r.status) ?? 0) + 1));
+  const absent = inRangeRecords.value.filter(r => !attendedStatuses.includes(r.status)).length;
+  const attended = Math.max(0, expectedDays.value - absent);
+  const rate = expectedDays.value === 0 ? null : Math.round((attended / expectedDays.value) * 1000) / 10;
+  return { total: inRangeRecords.value.length, absent, attended, rate, counts };
+});
 
 const statItems = computed(() =>
   (Object.keys(attendanceStatusLabel) as (keyof typeof attendanceStatusLabel)[]).map(st => ({
@@ -115,18 +116,14 @@ onMounted(async () => {
       <NTabs type="line" animated>
         <NTabPane name="attendance" tab="考勤" display-directive="show:lazy">
           <div class="mb-16px flex flex-wrap items-center gap-16px">
-            <NStatistic label="出勤率（按已记录）" :value="stats.rate ?? '—'">
+            <NStatistic label="出勤率" :value="stats.rate ?? '—'">
               <template #suffix>%</template>
             </NStatistic>
-            <NStatistic label="已记录天数" :value="stats.total" />
-            <NStatistic label="到校天数" :value="stats.attended" />
-            <NStatistic label="应出勤工作日" :value="expectedDays" />
-            <NStatistic label="缺记录" :value="missingDays">
-              <template #suffix>天</template>
+            <NStatistic label="应出勤天数" :value="expectedDays">
+              <template #suffix>天（按教学日历）</template>
             </NStatistic>
-            <NTag v-if="missingDays > 0" type="warning" size="small" :bordered="false">
-              有 {{ missingDays }} 个工作日未录考勤
-            </NTag>
+            <NStatistic label="到校天数" :value="stats.attended" />
+            <NStatistic label="异常天数" :value="stats.total" />
             <div class="ml-auto flex flex-wrap gap-8px">
               <NTag v-for="it in statItems" :key="it.label" :bordered="false" size="small">
                 {{ it.label }} {{ it.count }}

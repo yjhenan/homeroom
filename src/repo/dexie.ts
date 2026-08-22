@@ -105,6 +105,14 @@ class HomeroomDB extends Dexie {
             }
           });
       });
+
+    // v4：考勤改纯异常存储——出勤由教学日历推导，present 行不再落库，存量清除
+    this.version(4).upgrade(trans => {
+      return trans
+        .table('attendance')
+        .filter(r => r.status === 'present')
+        .delete();
+    });
   }
 }
 
@@ -404,16 +412,19 @@ export class DexieClassRepo implements ClassRepo {
       if (date < sem.start_date || date > sem.end_date) {
         throw new Error(`日期 ${date} 不在本学期范围内（${sem.start_date} ~ ${sem.end_date}）`);
       }
+      // 全量替换该 (semester, date) 的异常记录；出勤不落库（由教学日历推导，全勤日存空即可）
       await this.db.attendance.where('[semester_id+date]').equals([semesterId, date]).delete();
 
-      const records: Attendance[] = rows.map(input => ({
-        id: genId(),
-        semester_id: semesterId,
-        student_id: input.student_id,
-        date,
-        status: input.status,
-        ...(input.remark ? { remark: input.remark } : {})
-      }));
+      const records: Attendance[] = rows
+        .filter(r => r.status !== 'present')
+        .map(input => ({
+          id: genId(),
+          semester_id: semesterId,
+          student_id: input.student_id,
+          date,
+          status: input.status,
+          ...(input.remark ? { remark: input.remark } : {})
+        }));
       if (records.length) {
         await this.db.attendance.bulkAdd(records);
       }

@@ -76,7 +76,7 @@ async function main() {
     for (let c = 0; c < marks[i]; c += 1) await card.click();
   }
   await page.click('button:has-text("保存")');
-  await page.waitForSelector('text=已录入 40 条', { timeout: 15000 });
+  await page.waitForSelector('text=已保存 2026-09-07 异常 6 人', { timeout: 15000 });
   const elapsed = Date.now() - t0;
   console.log(`✓ 单日考勤（6 人异常 + 保存）耗时 ${elapsed}ms ≤ 30000ms`);
   assert.ok(elapsed <= 30_000, `录入超时：${elapsed}ms`);
@@ -96,17 +96,20 @@ async function main() {
   // 4) 360 一致性：第一个异常学生（病假）的 360 视图
   await page.goto(`${BASE}/student`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.n-data-table', { timeout: 15000 });
-  await page.click('.n-data-table button:has-text("360")');
+  await page.locator('.n-data-table tbody tr').first().click({ button: 'right' });
+  await page.waitForSelector('.n-dropdown-option', { timeout: 5000 });
+  await page.locator('.n-dropdown-option').filter({ hasText: '详情' }).first().click();
   await page.waitForSelector('text=出勤率', { timeout: 15000 });
   await page.waitForTimeout(800);
   const stats = await page.locator('.n-statistic').allTextContents();
   console.log('  360 统计:', stats.join(' / '));
-  assert.ok(stats[0].includes('0%'), `单日仅病假 → 出勤率应 0%，实际 ${stats[0]}`);
-  assert.ok(stats[1].includes('1'), '已记录天数应为 1');
+  // 日历口径：9/7 是上课日但"今天"在开学前 → 应出勤 0，出勤率显示 —；异常 1 条（病假）
+  assert.ok(stats[0].includes('—'), `开学前应出勤为 0 → 出勤率应为 —，实际 ${stats[0]}`);
+  assert.ok(stats[3].includes('1'), `异常天数应为 1，实际 ${stats[3]}`);
   const hist = await page.locator('.n-data-table tbody tr').count();
   assert.equal(hist, 1, `单人历史应 1 行，实际 ${hist}`);
   assert.ok((await page.locator('.n-data-table').textContent())?.includes('2026-09-07'), '日期应一致');
-  console.log('✓ 360 视图考勤与录入一致（0% 病假 / 1 天 / 09-07）');
+  console.log('✓ 360 视图考勤与录入一致（异常 1 天病假 / 09-07）');
 
   const realErrors = consoleErrors.filter(e => !e.includes('favicon'));
   console.log(realErrors.length ? `⚠ 控制台错误: ${realErrors.join(' | ')}` : '✓ 无控制台错误');

@@ -63,7 +63,7 @@ const abnormalCount = computed(() => {
   return n;
 });
 
-/** 已保存条数（当天是否录过） */
+/** 已保存的异常条数（纯异常存储：0 = 全勤日） */
 const savedCount = ref(0);
 
 async function loadDate(targetDate: string) {
@@ -133,7 +133,10 @@ async function handleSave() {
     await repo.saveAttendanceForDate(semesterStore.activeSemesterId, date.value, rows);
     savedCount.value = rows.length;
     snapshot.value = JSON.stringify(statuses.value);
-    window.$message?.success(`已保存 ${date.value} 考勤（${rows.length} 人）`);
+    const abnormal = rows.filter(r => r.status !== 'present').length;
+    window.$message?.success(
+      abnormal ? `已保存 ${date.value} 异常 ${abnormal} 人` : `已保存 ${date.value}：全勤（清除原有异常）`
+    );
   } catch (err) {
     window.$message?.error(err instanceof Error ? err.message : '保存失败');
   } finally {
@@ -193,8 +196,8 @@ onBeforeUnmount(() => {
   <div>
     <div class="mb-16px flex flex-wrap items-center gap-12px">
       <div class="text-18px font-medium">考勤录入</div>
-      <NTag size="small" :bordered="false" :type="savedCount > 0 ? 'success' : 'default'">
-        {{ savedCount > 0 ? `已录入 ${savedCount} 条` : '未录入' }}
+      <NTag size="small" :bordered="false" :type="savedCount > 0 ? 'warning' : 'success'">
+        {{ savedCount > 0 ? `已存异常 ${savedCount} 人` : '全勤（无异常记录）' }}
       </NTag>
       <NTag v-if="isDirty" size="small" type="warning" :bordered="false">未保存</NTag>
       <NTag v-if="isArchived" size="small" type="warning" :bordered="false">学期已归档，只读</NTag>
@@ -211,7 +214,7 @@ onBeforeUnmount(() => {
         />
         <NButton @click="drawerShow = true">备注 ({{ abnormalCount }})</NButton>
         <NButton type="primary" :loading="saving" :disabled="isArchived || roster.length === 0" @click="handleSave">
-          {{ isDirty ? '保存' : savedCount > 0 ? '重新保存' : '全勤，直接保存' }}
+          {{ isDirty ? '保存异常' : savedCount > 0 ? '重存/清除异常' : '全勤无需保存' }}
         </NButton>
       </div>
     </div>
@@ -247,7 +250,7 @@ onBeforeUnmount(() => {
 
     <div class="mt-12px text-13px opacity-60">
       点击卡片循环切换：出勤 → 病假 → 事假 → 旷课 → 迟到 → 早退 →
-      出勤。默认全员出勤：全勤日直接点「保存」落库即可，只点异常学生。
+      出勤。默认全员出勤、由教学日历推导——只点异常学生，全勤日无需任何操作。
     </div>
 
     <RemarkDrawer v-model:show="drawerShow" :roster="roster" :statuses="statuses" @remark="handleRemark" />

@@ -7,16 +7,15 @@ import type { Calendar } from '@/utils/date';
 import dayjs from 'dayjs';
 
 defineOptions({
-  name: 'SemesterCalendarModal'
+  name: 'SemesterCalendarPanel'
 });
 
 const props = defineProps<{
-  show: boolean;
   semester: Semester | null;
 }>();
 
 const emit = defineEmits<{
-  'update:show': [value: boolean];
+  close: [];
   saved: [];
 }>();
 
@@ -25,11 +24,12 @@ const marks = ref<Calendar>({});
 const saving = ref(false);
 
 watch(
-  () => props.show,
-  show => {
-    if (!show || !props.semester) return;
-    marks.value = { ...calendarOf(props.semester) };
-  }
+  () => props.semester,
+  sem => {
+    if (!sem) return;
+    marks.value = { ...calendarOf(sem) };
+  },
+  { immediate: true }
 );
 
 const semStart = computed(() => props.semester?.start_date ?? '2000-01-01');
@@ -97,7 +97,6 @@ async function handleSave() {
     await repo.setSemesterCalendar(props.semester.id, marks.value);
     window.$message?.success('教学日历已保存');
     emit('saved');
-    emit('update:show', false);
   } catch (err) {
     window.$message?.error(err instanceof Error ? err.message : '保存失败');
   } finally {
@@ -106,19 +105,15 @@ async function handleSave() {
 }
 
 function handleClose() {
-  emit('update:show', false);
+  emit('close');
 }
 </script>
 
 <template>
-  <NModal
-    :show="props.show"
-    preset="card"
-    :title="`教学日历 · ${props.semester?.name ?? ''}`"
-    class="w-720px"
-    :mask-closable="false"
-    @update:show="handleClose"
-  >
+  <NCard :bordered="false" class="card-wrapper" :title="`教学日历 · ${props.semester?.name ?? ''}`">
+    <template #header-extra>
+      <NButton size="small" quaternary @click="handleClose">收起</NButton>
+    </template>
     <div class="mb-8px flex flex-wrap items-center gap-16px text-13px">
       <span class="opacity-70">点击日期切换：</span>
       <span>
@@ -163,13 +158,10 @@ function handleClose() {
       </template>
     </NCalendar>
 
-    <template #footer>
-      <div class="flex justify-end gap-12px">
-        <NButton @click="handleClose">取消</NButton>
-        <NButton type="primary" :loading="saving" @click="handleSave">保存</NButton>
-      </div>
-    </template>
-  </NModal>
+    <div class="mt-12px flex justify-end">
+      <NButton type="primary" :loading="saving" @click="handleSave">保存</NButton>
+    </div>
+  </NCard>
 </template>
 
 <style scoped>
