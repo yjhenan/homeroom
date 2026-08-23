@@ -208,6 +208,72 @@ export class DexieClassRepo implements ClassRepo {
     });
   }
 
+  async deleteSemester(
+    id: string
+  ): Promise<{
+    students: number;
+    enrollments: number;
+    attendance: number;
+    scores: number;
+    discipline: number;
+    duty: number;
+    documents: number;
+  }> {
+    const target = await this.db.semesters.get(id);
+    if (!target) throw new Error(`学期不存在: ${id}`);
+    if (target.is_active) throw new Error('当前学期不能删除，请先切换到其他学期');
+
+    // 学生实体仅当全部名册被删后才能删（学生可能跨学期）
+    const enrollments = await this.db.enrollments.where('semester_id').equals(id).toArray();
+    const enrollmentStudentIds = enrollments.map(e => e.student_id);
+    // 该生在其他学期是否还有名册
+    const otherEnrollments = await this.db.enrollments.where('student_id').anyOf(enrollmentStudentIds).toArray();
+    const stillEnrolledElsewhere = new Set(otherEnrollments.filter(e => e.semester_id !== id).map(e => e.student_id));
+
+    const attendance = await this.db.attendance.where('semester_id').equals(id).toArray();
+    const scores = await this.db.scores.where('semester_id').equals(id).toArray();
+    const discipline = await this.db.discipline_events.where('semester_id').equals(id).toArray();
+    const duty = await this.db.duty_records.where('semester_id').equals(id).toArray();
+    const documents = await this.db.documents.where('semester_id').equals(id).toArray();
+
+    // 本学期的考勤/成绩/德育记录按 (semester, student) 删；值日/文档按 semester 删
+    await this.db.transaction(
+      'rw',
+      [
+        this.db.semesters,
+        this.db.students,
+        this.db.enrollments,
+        this.db.attendance,
+        this.db.scores,
+        this.db.discipline_events,
+        this.db.duty_records,
+        this.db.documents
+      ],
+      async () => {
+        await this.db.enrollments.where('semester_id').equals(id).delete();
+        await this.db.attendance.where('semester_id').equals(id).delete();
+        await this.db.scores.where('semester_id').equals(id).delete();
+        await this.db.discipline_events.where('semester_id').equals(id).delete();
+        await this.db.duty_records.where('semester_id').equals(id).delete();
+        await this.db.documents.where('semester_id').equals(id).delete();
+        await this.db.semesters.delete(id);
+        // 仅属于本学期的学生实体也删除（他处无名册）
+        const removable = enrollmentStudentIds.filter(sid => !stillEnrolledElsewhere.has(sid));
+        await this.db.students.bulkDelete(removable);
+      }
+    );
+
+    return {
+      students: enrollmentStudentIds.filter(sid => !stillEnrolledElsewhere.has(sid)).length,
+      enrollments: enrollments.length,
+      attendance: attendance.length,
+      scores: scores.length,
+      discipline: discipline.length,
+      duty: duty.length,
+      documents: documents.length
+    };
+  }
+
   private async clearActiveSemesters(): Promise<void> {
     await this.db.semesters.toCollection().modify({ is_active: false });
   }

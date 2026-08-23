@@ -52,10 +52,28 @@ const columns: DataTableColumns<import('@/repo').Semester> = [
   {
     title: '操作',
     key: 'actions',
-    width: 120,
+    width: 200,
     align: 'center',
     render: row =>
-      h(NButton, { size: 'small', quaternary: true, onClick: () => openCalendar(row) }, { default: () => '教学日历' })
+      h('div', { class: 'flex justify-center gap-4px' }, [
+        h(NButton, { size: 'small', quaternary: true, onClick: () => openCalendar(row) }, { default: () => '日历' }),
+        h(
+          NButton,
+          { size: 'small', quaternary: true, type: 'primary', onClick: () => openEdit(row) },
+          { default: () => '编辑' }
+        ),
+        h(
+          NButton,
+          {
+            size: 'small',
+            quaternary: true,
+            type: 'error',
+            disabled: row.is_active,
+            onClick: () => handleDeleteSemester(row)
+          },
+          { default: () => '删除' }
+        )
+      ])
   }
 ];
 
@@ -130,8 +148,17 @@ const copyOptions = computed(() =>
     .map(s => ({ label: `${s.name}（在读名册）`, value: s.id }))
 );
 
+const editingId = ref<string | null>(null);
+
 function openCreate() {
+  editingId.value = null;
   form.value = { id: '', name: '', start_date: null, end_date: null, copyFrom: null };
+  modalShow.value = true;
+}
+
+function openEdit(row: import('@/repo').Semester) {
+  editingId.value = row.id;
+  form.value = { id: row.id, name: row.name, start_date: row.start_date, end_date: row.end_date, copyFrom: null };
   modalShow.value = true;
 }
 
@@ -141,6 +168,17 @@ async function handleCreate() {
   if (!form.value.start_date || !form.value.end_date) return;
   saving.value = true;
   try {
+    if (editingId.value) {
+      await repo.updateSemester(editingId.value, {
+        name: form.value.name.trim(),
+        start_date: form.value.start_date!,
+        end_date: form.value.end_date!
+      });
+      await refreshSemesters();
+      window.$message?.success('已保存');
+      modalShow.value = false;
+      return;
+    }
     await repo.createSemester({
       id: form.value.id.trim(),
       name: form.value.name.trim(),
@@ -161,6 +199,28 @@ async function handleCreate() {
   } finally {
     saving.value = false;
   }
+}
+
+async function handleDeleteSemester(row: import('@/repo').Semester) {
+  const students = await repo.listStudents(row.id);
+  const scores = row.archived ? '' : '';
+  window.$dialog?.warning({
+    title: '删除学期',
+    content: students.length
+      ? `「${row.name}」下有 ${students.length} 名学生名册。删除学期将连带删除其全部考勤/成绩/德育/值日/文档记录，不可恢复。确认删除？`
+      : `删除「${row.name}」（无学生名册）？该学期的全部数据将一并删除。`,
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await repo.deleteSemester(row.id);
+        await refreshSemesters();
+        window.$message?.success('已删除');
+      } catch (err) {
+        window.$message?.error(err instanceof Error ? err.message : '删除失败');
+      }
+    }
+  });
 }
 
 // ---- 数据备份 ----
@@ -277,10 +337,16 @@ onMounted(async () => {
     </NCard>
 
     <!-- 新建学期弹窗 -->
-    <NModal v-model:show="modalShow" preset="card" title="新建学期" class="w-480px" :mask-closable="false">
+    <NModal
+      v-model:show="modalShow"
+      preset="card"
+      :title="editingId ? '编辑学期' : '新建学期'"
+      class="w-480px"
+      :mask-closable="false"
+    >
       <NForm ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="84">
         <NFormItem label="学期编号" path="id">
-          <NInput v-model:value="form.id" placeholder="如 2026-2027-2" />
+          <NInput v-model:value="form.id" placeholder="如 2026-2027-2" :disabled="Boolean(editingId)" />
         </NFormItem>
         <NFormItem label="学期名称" path="name">
           <NInput v-model:value="form.name" placeholder="如 2026-2027学年 第二学期" />
@@ -298,7 +364,9 @@ onMounted(async () => {
       <template #footer>
         <div class="flex justify-end gap-12px">
           <NButton @click="modalShow = false">取消</NButton>
-          <NButton type="primary" :loading="saving" @click="handleCreate">创建并切换</NButton>
+          <NButton type="primary" :loading="saving" @click="handleCreate">
+            {{ editingId ? '保存' : '创建并切换' }}
+          </NButton>
         </div>
       </template>
     </NModal>

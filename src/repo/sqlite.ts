@@ -157,6 +157,71 @@ export class SqliteClassRepo implements ClassRepo {
     await db.execute('UPDATE semesters SET data = $1 WHERE id = $2', [toRow({ ...sem, calendar }), id]);
   }
 
+  async deleteSemester(
+    id: string
+  ): Promise<{
+    students: number;
+    enrollments: number;
+    attendance: number;
+    scores: number;
+    discipline: number;
+    duty: number;
+    documents: number;
+  }> {
+    const db = await this.load();
+    const semRows = await db.select<{ data: string }[]>('SELECT data FROM semesters WHERE id = $1', [id]);
+    if (!semRows[0]) throw new Error(`学期不存在: ${id}`);
+    if (fromRow<Semester>(semRows[0]).is_active) throw new Error('当前学期不能删除，请先切换到其他学期');
+
+    const enrollments = (
+      await db.select<{ data: string }[]>(
+        "SELECT data FROM enrollments WHERE json_extract(data,'$.semester_id') = $1",
+        [id]
+      )
+    ).map(fromRow<Enrollment>);
+    const enrollmentStudentIds = enrollments.map(e => e.student_id);
+
+    // 他处仍有名册的学生不删实体
+    const stillElsewhere = new Set<string>();
+    for (const sid of enrollmentStudentIds) {
+      const others = await db.select<{ data: string }[]>(
+        "SELECT data FROM enrollments WHERE json_extract(data,'$.student_id') = $1 AND json_extract(data,'$.semester_id') != $2",
+        [sid, id]
+      );
+      if (others.length) stillElsewhere.add(sid);
+    }
+
+    const count = async (table: string) => {
+      const r = await db.select<{ n: number }[]>(
+        `SELECT COUNT(*) as n FROM ${table} WHERE json_extract(data,'$.semester_id') = $1`,
+        [id]
+      );
+      return r[0]?.n ?? 0;
+    };
+
+    await db.execute("DELETE FROM enrollments WHERE json_extract(data,'$.semester_id') = $1", [id]);
+    await db.execute("DELETE FROM attendance WHERE json_extract(data,'$.semester_id') = $1", [id]);
+    await db.execute("DELETE FROM scores WHERE json_extract(data,'$.semester_id') = $1", [id]);
+    await db.execute("DELETE FROM discipline_events WHERE json_extract(data,'$.semester_id') = $1", [id]);
+    await db.execute("DELETE FROM duty_records WHERE json_extract(data,'$.semester_id') = $1", [id]);
+    await db.execute("DELETE FROM documents WHERE json_extract(data,'$.semester_id') = $1", [id]);
+    await db.execute('DELETE FROM semesters WHERE id = $1', [id]);
+    const removable = enrollmentStudentIds.filter(sid => !stillElsewhere.has(sid));
+    for (const sid of removable) {
+      await db.execute('DELETE FROM students WHERE id = $1', [sid]);
+    }
+
+    return {
+      students: removable.length,
+      enrollments: enrollments.length,
+      attendance: await count('attendance'),
+      scores: await count('scores'),
+      discipline: await count('discipline_events'),
+      duty: await count('duty_records'),
+      documents: await count('documents')
+    };
+  }
+
   async copyRoster(fromSemesterId: string, toSemesterId: string): Promise<number> {
     if (fromSemesterId === toSemesterId) throw new Error('源学期与目标学期相同');
     const db = await this.load();
