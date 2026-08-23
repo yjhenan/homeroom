@@ -55,6 +55,10 @@ export const useAppStore = defineStore(SetupStoreId.App, () => {
     {
       label: '中文',
       key: 'zh-CN'
+    },
+    {
+      label: 'English',
+      key: 'en-US'
     }
   ];
 

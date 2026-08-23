@@ -1,5 +1,6 @@
 import { locale } from 'dayjs';
 import 'dayjs/locale/zh-cn';
+import 'dayjs/locale/en';
 
 /**
  * Set dayjs locale
@@ -8,7 +9,8 @@ import 'dayjs/locale/zh-cn';
  */
 export function setDayjsLocale(lang: App.I18n.LangType = 'zh-CN') {
   const localMap = {
-    'zh-CN': 'zh-cn'
+    'zh-CN': 'zh-cn',
+    'en-US': 'en'
   } satisfies Record<App.I18n.LangType, string>;
 
   locale(localMap[lang]);

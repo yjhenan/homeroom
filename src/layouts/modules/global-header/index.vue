@@ -40,6 +40,12 @@ const { isFullscreen, toggle } = useFullscreen();
     <div class="h-full flex-y-center justify-end">
       <SemesterSwitch v-if="!appStore.isMobile" class="mr-8px" />
       <GlobalSearch v-if="themeStore.header.globalSearch.visible" />
+      <LangSwitch
+        v-if="themeStore.header.multilingual.visible && !appStore.isMobile"
+        :lang="appStore.locale"
+        :lang-options="appStore.localeOptions"
+        @change-lang="appStore.changeLocale"
+      />
       <FullScreen v-if="!appStore.isMobile" :full="isFullscreen" @click="toggle" />
       <ThemeSchemaSwitch
         :theme-schema="themeStore.themeScheme"
