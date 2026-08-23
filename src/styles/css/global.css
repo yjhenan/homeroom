@@ -13,3 +13,56 @@ html {
   overflow-x: hidden;
   color: rgb(var(--base-text-color));
 }
+
+/* ---- 打印：只显示打印宿主，隐藏应用外壳（docs/03 打印贯穿）---- */
+@media print {
+  body.printing > #app,
+  body.printing .n-modal-container,
+  body.printing .n-drawer-container {
+    display: none !important;
+  }
+
+  #__print_host__ {
+    display: block;
+    color: #000;
+    background: #fff;
+  }
+
+  #__print_host__ .print-title {
+    font-size: 18px;
+    font-weight: 600;
+    text-align: center;
+    margin: 0 0 12px;
+  }
+
+  /* 表格在纸上黑白可读；展开滚动容器（max-height 会截断打印） */
+  #__print_host__ table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    color: #000;
+  }
+
+  #__print_host__ th,
+  #__print_host__ td {
+    border: 1px solid #999;
+    padding: 4px 8px;
+  }
+
+  #__print_host__ .n-data-table .n-base-table .n-base-table-body {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  #__print_host__ .opacity-40,
+  #__print_host__ .opacity-60,
+  #__print_host__ .opacity-70,
+  #__print_host__ .opacity-80 {
+    opacity: 1;
+  }
+}
+
+/* 屏幕上隐藏打印宿主 */
+#__print_host__ {
+  display: none;
+}

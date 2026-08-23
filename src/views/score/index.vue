@@ -261,7 +261,13 @@ onMounted(async () => {
       <!-- 总表在前 + 科目 Tab（右键设置/删除）；＋科目收进 Tab suffix -->
       <NTabs v-model:value="activeTab" type="line" animated>
         <NTabPane name="__matrix" tab="总表" display-directive="show:lazy">
-          <MatrixPanel :exam-id="selectedExamId ?? ''" :subjects="subjects" :roster="roster" :version="dataVersion" />
+          <MatrixPanel
+            :exam-id="selectedExamId ?? ''"
+            :exam-name="selectedExam?.name ?? ''"
+            :subjects="subjects"
+            :roster="roster"
+            :version="dataVersion"
+          />
         </NTabPane>
         <NTabPane v-for="sub in subjects" :key="sub" :name="`subj:${sub}`" display-directive="show">
           <template #tab>

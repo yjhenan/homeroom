@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, ref, watch } from 'vue';
+import { printElement } from '@/utils/print';
 import type { DataTableColumns } from 'naive-ui';
 import { NTag } from 'naive-ui';
 import { repo } from '@/repo';
@@ -11,11 +12,14 @@ defineOptions({
 
 const props = defineProps<{
   examId: string;
+  examName: string;
   subjects: string[];
   roster: StudentWithEnrollment[];
   /** 版本号：任何科目保存后 +1，触发重载 */
   version: number;
 }>();
+
+const examName = computed(() => props.examName || '成绩单');
 
 interface Row extends StudentWithEnrollment {
   scores: Record<string, number | null>;
@@ -25,6 +29,11 @@ interface Row extends StudentWithEnrollment {
 
 const allScores = ref<Score[]>([]);
 const loading = ref(false);
+const tableRef = ref<HTMLElement | null>(null);
+
+function handlePrint() {
+  printElement(tableRef.value, `成绩单 · ${examName.value}`);
+}
 
 async function load() {
   if (!props.examId) {
@@ -111,6 +120,7 @@ onMounted(() => load());
     <div class="mb-12px text-13px opacity-60">
       总表为只读汇总：保存各科成绩后自动更新；「—」未录入，「缺」为缺考，缺考按 0 分计入总分。
     </div>
+    <NButton size="small" class="mb-8px" @click="handlePrint">打印成绩单</NButton>
     <div
       class="mb-8px flex flex-wrap items-center gap-16px rounded-6px bg-[rgba(127,127,127,0.08)] px-16px py-8px text-13px"
     >
@@ -130,15 +140,17 @@ onMounted(() => load());
         <b>{{ summary.totalAvg }}</b>
       </span>
     </div>
-    <NDataTable
-      :columns="columns"
-      :data="rows"
-      :loading="loading"
-      :row-key="(r: Row) => r.id"
-      max-height="480"
-      size="small"
-      :scroll-x="560 + subjects.length * 90"
-    />
+    <div ref="tableRef">
+      <NDataTable
+        :columns="columns"
+        :data="rows"
+        :loading="loading"
+        :row-key="(r: Row) => r.id"
+        max-height="480"
+        size="small"
+        :scroll-x="560 + subjects.length * 90"
+      />
+    </div>
   </div>
 </template>
 

@@ -9,6 +9,7 @@ import type { StudentInput, StudentWithEnrollment } from '@/repo';
 import { useSemesterStore } from '@/store/modules/semester';
 import { useStudentStore } from '@/store/modules/student';
 import { exportStudents } from '@/utils/excel';
+import { printElement } from '@/utils/print';
 import StudentModal from './modules/student-modal.vue';
 import ImportModal from './modules/import-modal.vue';
 import ContextMenu from '@/components/common/context-menu.vue';
@@ -52,6 +53,7 @@ function handleRowMenu(key: string | number) {
 function rowProps(row: StudentWithEnrollment) {
   return {
     onContextmenu: (e: MouseEvent) => {
+      e.preventDefault(); // 阻止系统右键菜单（编程式 open 不经过组件的 .prevent 修饰符）
       menuRow.value = row;
       rowMenuRef.value?.open(e);
     }
@@ -178,6 +180,28 @@ function handleSorterChange(_states: DataTableSortState[] | DataTableSortState |
   // NDataTable 自带客户端排序，这里仅占位避免受控告警
 }
 
+/** 打印点名表：学号/姓名 + 空白签到列（点名/收作业通用） */
+function handlePrintRoster() {
+  const rows = filteredStudents.value
+    .map(s => `<tr><td>${s.student_no}</td><td>${s.name}</td><td></td><td></td></tr>`)
+    .join('');
+  const html = `<table><thead><tr><th>学号</th><th>姓名</th><th>上午</th><th>下午</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const host = document.getElementById('__print_host__');
+  if (host) host.remove();
+  const div = document.createElement('div');
+  div.id = '__print_host__';
+  div.innerHTML =
+    `<h1 class="print-title">点名表 · ${semesterStore.activeSemester?.name ?? ''}（${filteredStudents.value.length} 人）</h1>` +
+    html;
+  document.body.appendChild(div);
+  document.body.classList.add('printing');
+  window.print();
+  window.setTimeout(() => {
+    document.body.classList.remove('printing');
+    div.remove();
+  }, 300);
+}
+
 function handleExport() {
   exportStudents(filteredStudents.value);
   window.$message?.success(`已导出 ${filteredStudents.value.length} 条`);
@@ -195,6 +219,7 @@ function handleExport() {
           <NSelect v-model:value="statusFilter" :options="statusOptions" class="w-120px" />
           <NButton @click="importShow = true">导入</NButton>
           <NButton :disabled="filteredStudents.length === 0" @click="handleExport">导出</NButton>
+          <NButton :disabled="filteredStudents.length === 0" @click="handlePrintRoster">打印点名表</NButton>
           <NButton type="primary" @click="handleAdd">新增学生</NButton>
           <NTooltip placement="bottom">
             <template #trigger>
