@@ -120,8 +120,7 @@ onMounted(() => load());
     <div class="mb-12px text-13px opacity-60">
       总表为只读汇总：保存各科成绩后自动更新；「—」未录入，「缺」为缺考，缺考按 0 分计入总分。
     </div>
-    <!-- 打印在 WebView2 下弹窗空白，暂隐待修复 -->
-    <NButton v-if="false" size="small" class="mb-8px" @click="handlePrint">打印成绩单</NButton>
+    <NButton size="small" class="mb-8px" @click="handlePrint">打印成绩单</NButton>
     <div
       class="mb-8px flex flex-wrap items-center gap-16px rounded-6px bg-[rgba(127,127,127,0.08)] px-16px py-8px text-13px"
     >
