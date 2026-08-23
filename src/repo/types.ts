@@ -295,9 +295,7 @@ export interface ClassRepo {
   /** 设置学期教学日历覆盖表（周一~五上课基线；归档学期也可改，属元数据） */
   setSemesterCalendar(id: string, calendar: Record<string, CalendarMark>): Promise<void>;
   /** 删除学期（连带其全部业务数据；当前学期不可删）；返回删除的数据条数 */
-  deleteSemester(
-    id: string
-  ): Promise<{
+  deleteSemester(id: string): Promise<{
     students: number;
     enrollments: number;
     attendance: number;

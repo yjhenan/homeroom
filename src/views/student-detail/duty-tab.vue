@@ -64,41 +64,39 @@ onMounted(async () => {
           <NTag size="small" type="warning" :bordered="false">一般 {{ stats.ok }}</NTag>
           <NTag size="small" type="error" :bordered="false">差 {{ stats.poor }}</NTag>
         </div>
-        <div class="max-h-420px overflow-auto rounded-6px border border-[rgba(127,127,127,0.28)]">
-          <table class="w-full text-14px">
-            <thead class="sticky top-0 bg-[rgba(127,127,127,0.14)]">
-              <tr>
-                <th class="w-110px px-12px py-8px text-left font-medium">日期</th>
-                <th class="w-90px px-12px py-8px text-left font-medium">区域</th>
-                <th class="w-100px px-12px py-8px text-left font-medium">值日组</th>
-                <th class="px-12px py-8px text-left font-medium">同组学生</th>
-                <th class="w-80px px-12px py-8px text-left font-medium">评价</th>
-                <th class="px-12px py-8px text-left font-medium">备注</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="r in records" :key="r.id" class="border-t border-[rgba(127,127,127,0.28)]">
-                <td class="px-12px py-6px opacity-80">{{ r.date }}</td>
-                <td class="px-12px py-6px">{{ r.area }}</td>
-                <td class="px-12px py-6px">{{ r.group_name ?? '—' }}</td>
-                <td class="px-12px py-6px opacity-80">
-                  {{
-                    r.student_ids
-                      .filter(id => id !== props.studentId)
-                      .map(id => nameMap.get(id) ?? '？')
-                      .join('、') || '—'
-                  }}
-                </td>
-                <td class="px-12px py-6px">
-                  <NTag size="small" :type="dutyEvaluationTagType[r.evaluation]" :bordered="false">
-                    {{ dutyEvaluationLabel[r.evaluation] }}
-                  </NTag>
-                </td>
-                <td class="px-12px py-6px">{{ r.remark ?? '—' }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <NTable :bordered="false" :single-line="false" size="small" :max-height="420">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>区域</th>
+              <th>值日组</th>
+              <th>同组学生</th>
+              <th>评价</th>
+              <th>备注</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in records" :key="r.id">
+              <td>{{ r.date }}</td>
+              <td>{{ r.area }}</td>
+              <td>{{ r.group_name ?? '—' }}</td>
+              <td class="opacity-80">
+                {{
+                  r.student_ids
+                    .filter(id => id !== props.studentId)
+                    .map(id => nameMap.get(id) ?? '？')
+                    .join('、') || '—'
+                }}
+              </td>
+              <td>
+                <NTag size="small" :type="dutyEvaluationTagType[r.evaluation]" :bordered="false">
+                  {{ dutyEvaluationLabel[r.evaluation] }}
+                </NTag>
+              </td>
+              <td>{{ r.remark ?? '—' }}</td>
+            </tr>
+          </tbody>
+        </NTable>
       </template>
     </NSpin>
   </div>

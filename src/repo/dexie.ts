@@ -208,9 +208,7 @@ export class DexieClassRepo implements ClassRepo {
     });
   }
 
-  async deleteSemester(
-    id: string
-  ): Promise<{
+  async deleteSemester(id: string): Promise<{
     students: number;
     enrollments: number;
     attendance: number;

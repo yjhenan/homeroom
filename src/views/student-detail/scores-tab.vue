@@ -99,29 +99,27 @@ onMounted(() => load());
       <template v-else>
         <div ref="domRef" class="h-280px w-full"></div>
         <NDivider>各次考试明细</NDivider>
-        <div class="max-h-360px overflow-auto rounded-6px border border-[rgba(127,127,127,0.28)]">
-          <table class="w-full text-14px">
-            <thead class="sticky top-0 bg-[rgba(127,127,127,0.14)]">
-              <tr>
-                <th class="w-110px px-12px py-8px text-left font-medium">日期</th>
-                <th class="px-12px py-8px text-left font-medium">考试</th>
-                <th class="w-100px px-12px py-8px text-left font-medium">科目</th>
-                <th class="w-100px px-12px py-8px text-left font-medium">成绩</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(r, i) in detailRows" :key="i" class="border-t border-[rgba(127,127,127,0.28)]">
-                <td class="px-12px py-6px opacity-80">{{ r.date }}</td>
-                <td class="px-12px py-6px">{{ r.exam_name }}</td>
-                <td class="px-12px py-6px">{{ r.subject }}</td>
-                <td class="px-12px py-6px">
-                  <NTag v-if="r.score === null" size="small" :bordered="false">缺考</NTag>
-                  <span v-else :class="r.score < 60 ? 'text-error' : ''">{{ r.score }}</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <NTable :bordered="false" :single-line="false" size="small" :max-height="360">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>考试</th>
+              <th>科目</th>
+              <th>成绩</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(r, i) in detailRows" :key="i">
+              <td>{{ r.date }}</td>
+              <td>{{ r.exam_name }}</td>
+              <td>{{ r.subject }}</td>
+              <td>
+                <NTag v-if="r.score === null" size="small" :bordered="false">缺考</NTag>
+                <span v-else :class="r.score < 60 ? 'text-error' : ''">{{ r.score }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </NTable>
       </template>
     </NSpin>
   </div>

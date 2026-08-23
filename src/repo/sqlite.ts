@@ -157,9 +157,7 @@ export class SqliteClassRepo implements ClassRepo {
     await db.execute('UPDATE semesters SET data = $1 WHERE id = $2', [toRow({ ...sem, calendar }), id]);
   }
 
-  async deleteSemester(
-    id: string
-  ): Promise<{
+  async deleteSemester(id: string): Promise<{
     students: number;
     enrollments: number;
     attendance: number;
