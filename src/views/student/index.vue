@@ -190,20 +190,9 @@ function handlePrintRoster() {
     .map(s => `<tr><td>${s.student_no}</td><td>${s.name}</td><td></td><td></td></tr>`)
     .join('');
   const html = `<table><thead><tr><th>学号</th><th>姓名</th><th>上午</th><th>下午</th></tr></thead><tbody>${rows}</tbody></table>`;
-  const host = document.getElementById('__print_host__');
-  if (host) host.remove();
   const div = document.createElement('div');
-  div.id = '__print_host__';
-  div.innerHTML =
-    `<h1 class="print-title">点名表 · ${semesterStore.activeSemester?.name ?? ''}（${filteredStudents.value.length} 人）</h1>` +
-    html;
-  document.body.appendChild(div);
-  document.body.classList.add('printing');
-  window.print();
-  window.setTimeout(() => {
-    document.body.classList.remove('printing');
-    div.remove();
-  }, 300);
+  div.innerHTML = html;
+  printElement(div, `点名表 · ${semesterStore.activeSemester?.name ?? ''}（${filteredStudents.value.length} 人）`);
 }
 
 function handleExport() {
@@ -224,7 +213,9 @@ function handleExport() {
           <NButton @click="importShow = true">导入</NButton>
           <NButton :disabled="filteredStudents.length === 0" @click="handleExport">导出</NButton>
           <!-- 打印在 WebView2 下弹窗空白，暂隐待修复 -->
-          <NButton v-if="false" :disabled="filteredStudents.length === 0" @click="handlePrintRoster">打印点名表</NButton>
+          <NButton v-if="false" :disabled="filteredStudents.length === 0" @click="handlePrintRoster">
+            打印点名表
+          </NButton>
           <NButton type="primary" @click="handleAdd">新增学生</NButton>
           <NTooltip placement="bottom">
             <template #trigger>
