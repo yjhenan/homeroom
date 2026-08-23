@@ -94,7 +94,7 @@ describe('仓储：学期学生名册考勤备份', () => {
     await repo.saveAttendanceForDate(sem.id, '2026-09-01', dayRows);
 
     let dayList = await repo.getAttendanceByDate(sem.id, '2026-09-01');
-    // 纯异常���储：40 人中 present（i%6===0，7 人）不落库 → 33 条异常
+    // 纯异常存储：40 人中 present（i%6===0，7 人）不落库 → 33 条异常
     expect(dayList.length).toBe(33);
     expect(dayList.filter(r => r.status === 'late').length).toBe(7);
 

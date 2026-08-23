@@ -32,7 +32,7 @@ const schoolDayRecords = computed(() => {
   return records.value.filter(r => isSchoolDay(r.date, sem.start_date, sem.end_date, cal));
 });
 
-/** 应出勤天数：至今的上课日（范围内工作日基线 + 范围外补课标记，按教���日历推导） */
+/** 应出勤天数：至今的上课日（范围内工作日基线 + 范围外补课标记，按教学日历推导） */
 const expectedDays = computed(() => {
   const sem = semesterStore.activeSemester;
   if (!sem) return 0;
@@ -122,7 +122,7 @@ onMounted(async () => {
               <template #label>
                 <NTooltip placement="top">
                   <template #trigger>
-                    <span>应出勤天��� (?)</span>
+                    <span>应出勤天数 (?)</span>
                   </template>
                   按教学日历推导：学期内工作日 − 假期 + 补课（含学期外补课），截至今天
                 </NTooltip>
