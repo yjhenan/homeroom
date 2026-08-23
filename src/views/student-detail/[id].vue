@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import dayjs from 'dayjs';
 import { useRoute } from 'vue-router';
 import { attendanceStatusLabel, attendedStatuses, genderLabel } from '@/constants/business';
 import { useSemesterStore } from '@/store/modules/semester';
 import { repo } from '@/repo';
 import type { Attendance, Student } from '@/repo';
-import { calendarOf, todayStr, workdaysBetween } from '@/utils/date';
+import { calendarOf, isSchoolDay, schoolDaysSoFar } from '@/utils/date';
 import HistoryTab from '../attendance/modules/history-tab.vue';
 import AttendanceCalendar from './attendance-calendar.vue';
 import ScoresTab from './scores-tab.vue';
@@ -25,19 +24,19 @@ const student = ref<Student | null>(null);
 const records = ref<Attendance[]>([]);
 const loading = ref(false);
 
-/** 学期范围内的记录（历史遗留的范围外数据不���统计，列表照常展示） */
-const inRangeRecords = computed(() => {
+/** 上课日的记录（日历是唯一事实；非上课日的遗留数据不进统计，列表照常展示） */
+const schoolDayRecords = computed(() => {
   const sem = semesterStore.activeSemester;
   if (!sem) return records.value;
-  return records.value.filter(r => r.date >= sem.start_date && r.date <= sem.end_date);
+  const cal = calendarOf(sem);
+  return records.value.filter(r => isSchoolDay(r.date, sem.start_date, sem.end_date, cal));
 });
 
-/** 应出勤天数：学期开始~今天之间的上课日（按教学日历推导，含调休） */
+/** 应出勤天数：至今的上课日（范围内工作日基线 + 范围外补课标记，按教���日历推导） */
 const expectedDays = computed(() => {
   const sem = semesterStore.activeSemester;
   if (!sem) return 0;
-  const stop = dayjs().isBefore(dayjs(sem.end_date), 'day') ? todayStr() : sem.end_date;
-  return workdaysBetween(sem.start_date, stop, calendarOf(sem));
+  return schoolDaysSoFar(sem.start_date, sem.end_date, calendarOf(sem));
 });
 
 /**
@@ -47,11 +46,11 @@ const expectedDays = computed(() => {
  */
 const stats = computed(() => {
   const counts = new Map<string, number>();
-  inRangeRecords.value.forEach(r => counts.set(r.status, (counts.get(r.status) ?? 0) + 1));
-  const absent = inRangeRecords.value.filter(r => !attendedStatuses.includes(r.status)).length;
+  schoolDayRecords.value.forEach(r => counts.set(r.status, (counts.get(r.status) ?? 0) + 1));
+  const absent = schoolDayRecords.value.filter(r => !attendedStatuses.includes(r.status)).length;
   const attended = Math.max(0, expectedDays.value - absent);
   const rate = expectedDays.value === 0 ? null : Math.round((attended / expectedDays.value) * 1000) / 10;
-  return { total: inRangeRecords.value.length, absent, attended, rate, counts };
+  return { total: schoolDayRecords.value.length, absent, attended, rate, counts };
 });
 
 const statItems = computed(() =>

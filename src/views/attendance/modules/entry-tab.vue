@@ -7,7 +7,7 @@ import { useStudentStore } from '@/store/modules/student';
 import { repo } from '@/repo';
 import type { AttendanceInput, AttendanceStatus } from '@/repo';
 import { attendanceStatusLabel, attendanceTagType, nextAttendanceStatus } from '@/constants/business';
-import { todayStr } from '@/utils/date';
+import { calendarOf, isSchoolDay, nextSchoolDay, todayStr } from '@/utils/date';
 import RemarkDrawer from './remark-drawer.vue';
 
 defineOptions({
@@ -19,19 +19,23 @@ const studentStore = useStudentStore();
 
 const isArchived = computed(() => semesterStore.activeSemester?.archived === true);
 
-/** 考勤日期必须落在学期内：默认今天，学期未开始/已结束则钳到最近边界 */
+/** 日历是唯一事实：考勤只能录上课日（学期内工作日 / 任何 school 标记，如开学前军训） */
+const calendar = computed(() => calendarOf(semesterStore.activeSemester));
 const semRange = computed(() => {
   const sem = semesterStore.activeSemester;
   return { start: sem?.start_date ?? '0000-01-01', end: sem?.end_date ?? '9999-12-31' };
 });
 
-function clampToSemester(d: string): string {
-  if (d < semRange.value.start) return semRange.value.start;
-  if (d > semRange.value.end) return semRange.value.end;
-  return d;
+function isWorkday(d: string): boolean {
+  return isSchoolDay(d, semRange.value.start, semRange.value.end, calendar.value);
 }
 
-const date = ref<string>(clampToSemester(todayStr()));
+/** 默认今天；非上课日（周末/假期/开学前）顺延到下一个上课日 */
+function clampToSchoolDay(d: string): string {
+  return isWorkday(d) ? d : nextSchoolDay(d, semRange.value.start, semRange.value.end, calendar.value);
+}
+
+const date = ref<string>(clampToSchoolDay(todayStr()));
 /** 当前编辑态：student_id → { status, remark } */
 const statuses = ref<Record<string, { status: AttendanceStatus; remark?: string }>>({});
 /** 加载完成时的快照，用于脏比较（必须响应式：isDirty computed 依赖它，普通变量不会触发重算） */
@@ -102,10 +106,10 @@ function handleRemark(studentId: string, remark: string) {
   statuses.value = { ...statuses.value, [studentId]: { ...cur, ...(remark ? { remark } : {}) } };
 }
 
-/** 日期选择器禁用学期范围外 */
-function isDateOutOfSemester(ts: number) {
+/** 日期选择器只允许上课日（非上课日置灰，含范围外补课日可选） */
+function isDateDisabled(ts: number) {
   const key = dayjs(ts).format('YYYY-MM-DD');
-  return key < semRange.value.start || key > semRange.value.end;
+  return !isWorkday(key);
 }
 
 async function handleDateChange(value: string | [string, string] | null) {
@@ -172,7 +176,7 @@ watch(
   async (next, prev) => {
     if (next && next !== prev) {
       // 学期切换视为新页面上下文；脏修改直接放弃（顶部学期切换本身有明确动作语义）
-      date.value = clampToSemester(date.value);
+      date.value = clampToSchoolDay(date.value);
       await loadDate(date.value);
     }
   }
@@ -208,7 +212,7 @@ onBeforeUnmount(() => {
           type="date"
           value-format="yyyy-MM-dd"
           :clearable="false"
-          :is-date-disabled="isDateOutOfSemester"
+          :is-date-disabled="isDateDisabled"
           class="w-160px"
           @update:formatted-value="handleDateChange"
         />

@@ -243,6 +243,14 @@ onMounted(async () => {
       </div>
     </NCard>
 
+    <!-- 教学日历（紧跟学期管理卡，点击行内按钮展开） -->
+    <CalendarPanel
+      v-if="calendarSemester"
+      :semester="calendarSemester"
+      @close="calendarSemester = null"
+      @saved="refreshSemesters"
+    />
+
     <!-- 数据 -->
     <NCard :bordered="false" class="card-wrapper" title="数据备份">
       <div class="flex flex-wrap items-center gap-12px">
@@ -292,13 +300,6 @@ onMounted(async () => {
         </div>
       </template>
     </NModal>
-
-    <CalendarPanel
-      v-if="calendarSemester"
-      :semester="calendarSemester"
-      @close="calendarSemester = null"
-      @saved="refreshSemesters"
-    />
   </NSpace>
 </template>
 

@@ -4,7 +4,8 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { createRepo } from '@/repo/index';
-import { calendarOf, workdaysBetween } from '@/utils/date';
+import { calendarOf, isSchoolDay, nextSchoolDay, schoolDaysSoFar, workdaysBetween } from '@/utils/date';
+import type { Calendar } from '@/utils/date';
 
 describe('教学日历', () => {
   it('设置/读取学期日历覆盖表', async () => {
@@ -63,6 +64,29 @@ describe('教学日历', () => {
     expect(calendarOf(null)).toEqual({});
   });
 
+  it('isSchoolDay / schoolDaysSoFar / nextSchoolDay：上课日推导', () => {
+    const start = '2026-09-01';
+    const end = '2027-01-20';
+    expect(isSchoolDay('2026-09-01', start, end)).toBe(true); // 周二开学
+    expect(isSchoolDay('2026-09-05', start, end)).toBe(false); // 周六
+    expect(isSchoolDay('2026-08-25', start, end)).toBe(false); // 范围外周二
+    const cal: Calendar = { '2026-09-03': 'holiday', '2026-09-05': 'school', '2026-08-25': 'school' };
+    expect(isSchoolDay('2026-09-03', start, end, cal)).toBe(false);
+    expect(isSchoolDay('2026-09-05', start, end, cal)).toBe(true);
+    expect(isSchoolDay('2026-08-25', start, end, cal)).toBe(true);
+
+    expect(schoolDaysSoFar(start, end, {}, '2026-09-11')).toBe(9); // 09-01(二)~09-11(五) 共 9 个工作日
+    expect(schoolDaysSoFar(start, end, { '2026-09-03': 'holiday' }, '2026-09-11')).toBe(8); // 周四放假
+    expect(schoolDaysSoFar(start, end, { '2026-08-25': 'school' }, '2026-09-11')).toBe(10); // 范围外军训计入
+    expect(schoolDaysSoFar(start, end, { '2026-08-25': 'school' }, '2026-08-24')).toBe(0); // 尚未发生
+    expect(schoolDaysSoFar(start, end, {}, '2026-08-31')).toBe(0); // 开学前恒 0
+    expect(schoolDaysSoFar(start, end, { '2026-08-26': 'holiday' }, '2026-09-11')).toBe(9); // 范围外 holiday 无效果
+
+    expect(nextSchoolDay('2026-09-05', start, end)).toBe('2026-09-07'); // 周六 → 周一
+    expect(nextSchoolDay('2026-08-23', start, end)).toBe('2026-09-01'); // 开学前 → 首日
+    expect(nextSchoolDay('2026-09-05', start, end, { '2026-09-05': 'school' })).toBe('2026-09-05'); // 当天补课
+  });
+
   it('workdaysBetween：假期减、补课加', () => {
     // 2026-09-07（周一）~ 09-11（周五）共 5 个工作日
     expect(workdaysBetween('2026-09-07', '2026-09-11')).toBe(5);
@@ -76,7 +100,7 @@ describe('教学日历', () => {
     expect(workdaysBetween('2026-09-11', '2026-09-07')).toBe(0);
   });
 
-  it('考勤日期必须在学期范围内（范围外拒绝，含周末调休在内均可录）', async () => {
+  it('考勤只能录上课日（日历是唯一事实：周末/假期/学期外拒绝，补课标记后可录）', async () => {
     const repo = createRepo();
     const sem = await repo.createSemester({
       id: '2097-2098-1',
@@ -88,14 +112,24 @@ describe('教学日历', () => {
     await repo.importStudents([{ name: '甲', student_no: 'R001', gender: 'male' }], sem.id, 'skip');
     const sid = (await repo.listStudents(sem.id))[0].id;
 
+    // 范围外（开学前/结束后）拒绝
     await expect(
-      repo.saveAttendanceForDate(sem.id, '2026-08-31', [{ student_id: sid, status: 'present' }])
-    ).rejects.toThrow(/不在本学期范围内/);
+      repo.saveAttendanceForDate(sem.id, '2026-08-31', [{ student_id: sid, status: 'late' }])
+    ).rejects.toThrow(/不是上课日/);
     await expect(
-      repo.saveAttendanceForDate(sem.id, '2027-01-21', [{ student_id: sid, status: 'present' }])
-    ).rejects.toThrow(/不在本学期范围内/);
-    // 周末（2026-09-12 周六）在范围内：可录（校历补课场景）；present 不落库，用 late 验证
+      repo.saveAttendanceForDate(sem.id, '2027-01-21', [{ student_id: sid, status: 'late' }])
+    ).rejects.toThrow(/不是上课日/);
+    // 范围内周六，未标记补课 → 非上课日，拒绝
+    await expect(
+      repo.saveAttendanceForDate(sem.id, '2026-09-12', [{ student_id: sid, status: 'late' }])
+    ).rejects.toThrow(/不是上课日/);
+    // 标记补课后（周末调休）→ 可录
+    await repo.setSemesterCalendar(sem.id, { '2026-09-12': 'school' });
     await repo.saveAttendanceForDate(sem.id, '2026-09-12', [{ student_id: sid, status: 'late' }]);
     expect((await repo.getAttendanceByDate(sem.id, '2026-09-12')).length).toBe(1);
+    // 范围外工作日标记补课（开学前军训）→ 也可录
+    await repo.setSemesterCalendar(sem.id, { '2026-09-12': 'school', '2026-08-25': 'school' });
+    await repo.saveAttendanceForDate(sem.id, '2026-08-25', [{ student_id: sid, status: 'sick' }]);
+    expect((await repo.getAttendanceByDate(sem.id, '2026-08-25')).length).toBe(1);
   });
 });

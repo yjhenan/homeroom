@@ -1,6 +1,7 @@
 import Dexie from 'dexie';
 import type { Table } from 'dexie';
 import { nanoid } from 'nanoid';
+import { calendarOf, isSchoolDay } from '@/utils/date';
 import type {
   Attendance,
   AttendanceInput,
@@ -408,9 +409,9 @@ export class DexieClassRepo implements ClassRepo {
       if (!sem) {
         throw new Error(`学期不存在: ${semesterId}`);
       }
-      // 考勤属于学期：范围外的日期大概率是选错学期/日期，开学前活动应调整学期起止
-      if (date < sem.start_date || date > sem.end_date) {
-        throw new Error(`日期 ${date} 不在本学期范围内（${sem.start_date} ~ ${sem.end_date}）`);
+      // 日历是唯一事实：只有上课日（学期内工作日 / 任何 school 标记，如开学前军训）才能录考勤
+      if (!isSchoolDay(date, sem.start_date, sem.end_date, calendarOf(sem))) {
+        throw new Error(`日期 ${date} 不是上课日（周末/假期/学期外）；如需录入请先在教学日历标记补课`);
       }
       // 全量替换该 (semester, date) 的异常记录；出勤不落库（由教学日历推导，全勤日存空即可）
       await this.db.attendance.where('[semester_id+date]').equals([semesterId, date]).delete();
