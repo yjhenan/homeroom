@@ -1,6 +1,6 @@
 [package]
 name = "homeroom"
-version = "0.1.0"
+version = "1.0.0"
 description = "班主任班级管理本地工具"
 authors = ["zhaoyanjie"]
 license = "MIT"

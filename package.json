@@ -1,6 +1,6 @@
 {
   "name": "homeroom",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "班主任的本地班级管理工具（web-first，M4 集成 Tauri）",
   "license": "MIT",
   "type": "module",

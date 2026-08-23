@@ -4,7 +4,7 @@ import type { DataTableColumns, FormInst, FormRules } from 'naive-ui';
 import { NButton, NSwitch } from 'naive-ui';
 import { useSemesterStore } from '@/store/modules/semester';
 import { useStudentStore } from '@/store/modules/student';
-import { repo } from '@/repo';
+import { isTauri, repo } from '@/repo';
 import { todayStr } from '@/utils/date';
 import { downloadBackup, readBackupFile } from '@/utils/backup';
 import CalendarPanel from './modules/calendar-panel.vue';
@@ -15,6 +15,7 @@ defineOptions({
 
 const semesterStore = useSemesterStore();
 const studentStore = useStudentStore();
+const desktop = isTauri();
 
 const loading = ref(false);
 
@@ -269,8 +270,9 @@ onMounted(async () => {
     <!-- 关于 -->
     <NCard :bordered="false" class="card-wrapper" title="关于">
       <div class="text-14px leading-24px opacity-80">
-        <p>homeroom 班级管理 · v0.1.0（web 阶段）</p>
-        <p>数据保存在本机浏览器 IndexedDB；桌面版（M4）将迁移到 exe 同目录 SQLite。</p>
+        <p>homeroom 班级管理 · v1.0.0{{ desktop ? '' : '（网页版）' }}</p>
+        <p v-if="desktop">数据保存在 exe 同目录 class.db（SQLite）；拔掉网线不影响使用。</p>
+        <p v-else>数据保存在本机浏览器 IndexedDB；可随时导出 JSON 备份迁移到桌面版。</p>
       </div>
     </NCard>
 
