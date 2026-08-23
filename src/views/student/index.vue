@@ -223,7 +223,8 @@ function handleExport() {
           <NSelect v-model:value="statusFilter" :options="statusOptions" class="w-120px" />
           <NButton @click="importShow = true">导入</NButton>
           <NButton :disabled="filteredStudents.length === 0" @click="handleExport">导出</NButton>
-          <NButton :disabled="filteredStudents.length === 0" @click="handlePrintRoster">打印点名表</NButton>
+          <!-- 打印在 WebView2 下弹窗空白，暂隐待修复 -->
+          <NButton v-if="false" :disabled="filteredStudents.length === 0" @click="handlePrintRoster">打印点名表</NButton>
           <NButton type="primary" @click="handleAdd">新增学生</NButton>
           <NTooltip placement="bottom">
             <template #trigger>
