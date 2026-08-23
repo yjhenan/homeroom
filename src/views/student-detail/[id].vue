@@ -118,8 +118,16 @@ onMounted(async () => {
             <NStatistic label="出勤率" :value="stats.rate ?? '—'">
               <template #suffix>%</template>
             </NStatistic>
-            <NStatistic label="应出勤天数" :value="expectedDays">
-              <template #suffix>天（按教学日历）</template>
+            <NStatistic :value="expectedDays">
+              <template #label>
+                <NTooltip placement="top">
+                  <template #trigger>
+                    <span>应出勤天��� (?)</span>
+                  </template>
+                  按教学日历推导：学期内工作日 − 假期 + 补课（含学期外补课），截至今天
+                </NTooltip>
+              </template>
+              <template #suffix>天</template>
             </NStatistic>
             <NStatistic label="到校天数" :value="stats.attended" />
             <NStatistic label="异常天数" :value="stats.total" />

@@ -143,8 +143,8 @@ function handleSaved() {
 
 /** 科目 Tab 右键菜单 */
 const subjectMenuOptions = [
-  { label: '满分/及格设置', key: 'conf' },
-  { label: '删除科目', key: 'delete' }
+  { label: '设置', key: 'conf', title: '满分/及格线设置' },
+  { label: '删除', key: 'delete', title: '删除科目及其全部成绩', props: { class: 'text-error' } }
 ];
 
 async function onSubjectMenu(key: string | number, subject: string) {

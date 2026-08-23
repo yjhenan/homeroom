@@ -3,6 +3,10 @@
  *
  * 存储策略：每表 (id TEXT PRIMARY KEY, data TEXT JSON)，data 存整个 DTO 的 JSON。
  * 与 Dexie 的"存对象"模型对称，DTO 零映射损失；查询用 json_extract 走表达式索引。
+ *
+ * 注：tauri-plugin-sql 底层是 sqlx 连接池，每次 execute 可能拿到不同连接——
+ * 显式 BEGIN/COMMIT 无法保证同连接执行，COMMIT 会报 no transaction。
+ * 因此本实现不使用跨语句事务，依赖 SQLite 逐条自动提交（单用户桌面场景可接受）。
  * 硬规则与 dexie.ts 相同：组件/store 只见 ClassRepo 接口。
  */
 import Database from '@tauri-apps/plugin-sql';
@@ -156,36 +160,29 @@ export class SqliteClassRepo implements ClassRepo {
   async copyRoster(fromSemesterId: string, toSemesterId: string): Promise<number> {
     if (fromSemesterId === toSemesterId) throw new Error('源学期与目标学期相同');
     const db = await this.load();
-    await db.execute('BEGIN');
-    try {
-      const source = (
+    const source = (
+      await db.select<{ data: string }[]>(
+        "SELECT data FROM enrollments WHERE json_extract(data,'$.semester_id') = $1",
+        [fromSemesterId]
+      )
+    ).map(fromRow<Enrollment>);
+    const existing = new Set(
+      (
         await db.select<{ data: string }[]>(
           "SELECT data FROM enrollments WHERE json_extract(data,'$.semester_id') = $1",
-          [fromSemesterId]
+          [toSemesterId]
         )
-      ).map(fromRow<Enrollment>);
-      const existing = new Set(
-        (
-          await db.select<{ data: string }[]>(
-            "SELECT data FROM enrollments WHERE json_extract(data,'$.semester_id') = $1",
-            [toSemesterId]
-          )
-        )
-          .map(fromRow<Enrollment>)
-          .map(e => e.student_id)
-      );
-      const toAdd = source
-        .filter(e => e.status === 'active' && !existing.has(e.student_id))
-        .map(e => ({ id: genId(), semester_id: toSemesterId, student_id: e.student_id, status: 'active' as const }));
-      for (const e of toAdd) {
-        await db.execute('INSERT INTO enrollments (id, data) VALUES ($1, $2)', [e.id, toRow(e)]);
-      }
-      await db.execute('COMMIT');
-      return toAdd.length;
-    } catch (err) {
-      await db.execute('ROLLBACK');
-      throw err;
+      )
+        .map(fromRow<Enrollment>)
+        .map(e => e.student_id)
+    );
+    const toAdd = source
+      .filter(e => e.status === 'active' && !existing.has(e.student_id))
+      .map(e => ({ id: genId(), semester_id: toSemesterId, student_id: e.student_id, status: 'active' as const }));
+    for (const e of toAdd) {
+      await db.execute('INSERT INTO enrollments (id, data) VALUES ($1, $2)', [e.id, toRow(e)]);
     }
+    return toAdd.length;
   }
 
   // ---- 学生 ----
@@ -223,22 +220,15 @@ export class SqliteClassRepo implements ClassRepo {
     const now = nowISO();
     const student: Student = { id: genId(), created_at: now, updated_at: now, ...normalizeStudentInput(input) };
     await this.assertStudentNoUnique(student.student_no);
-    await db.execute('BEGIN');
-    try {
-      await db.execute('INSERT INTO students (id, data, student_no) VALUES ($1, $2, $3)', [
-        student.id,
-        toRow(student),
-        student.student_no
-      ]);
-      await db.execute('INSERT INTO enrollments (id, data) VALUES ($1, $2)', [
-        genId(),
-        toRow({ id: genId(), semester_id: semesterId, student_id: student.id, status: 'active' })
-      ]);
-      await db.execute('COMMIT');
-    } catch (err) {
-      await db.execute('ROLLBACK');
-      throw err;
-    }
+    await db.execute('INSERT INTO students (id, data, student_no) VALUES ($1, $2, $3)', [
+      student.id,
+      toRow(student),
+      student.student_no
+    ]);
+    await db.execute('INSERT INTO enrollments (id, data) VALUES ($1, $2)', [
+      genId(),
+      toRow({ id: genId(), semester_id: semesterId, student_id: student.id, status: 'active' })
+    ]);
     return student;
   }
 
@@ -269,50 +259,27 @@ export class SqliteClassRepo implements ClassRepo {
     id: string
   ): Promise<{ enrollments: number; attendance: number; scores: number; discipline: number }> {
     const db = await this.load();
-    const enr = await db.select<{ data: string }[]>(
-      "SELECT data FROM enrollments WHERE json_extract(data,'$.student_id') = $1",
-      [id]
-    );
-    const att = await db.select<{ data: string }[]>(
-      "SELECT data FROM attendance WHERE json_extract(data,'$.student_id') = $1",
-      [id]
-    );
-    const sco = await db.select<{ data: string }[]>(
-      "SELECT data FROM scores WHERE json_extract(data,'$.student_id') = $1",
-      [id]
-    );
-    const dis = await db.select<{ data: string }[]>(
-      "SELECT data FROM discipline_events WHERE json_extract(data,'$.student_id') = $1",
-      [id]
-    );
-    // 值日记录里移除该学生
+    const counts = await this.countStudentRecords(id);
     const duty = (
       await db.select<{ data: string }[]>(
         "SELECT data FROM duty_records WHERE json_extract(data,'$.student_ids') LIKE $1",
         [`%"${id}"%`]
       )
     ).map(fromRow<DutyRecord>);
-    await db.execute('BEGIN');
-    try {
-      await db.execute('DELETE FROM students WHERE id = $1', [id]);
-      await db.execute("DELETE FROM enrollments WHERE json_extract(data,'$.student_id') = $1", [id]);
-      await db.execute("DELETE FROM attendance WHERE json_extract(data,'$.student_id') = $1", [id]);
-      await db.execute("DELETE FROM scores WHERE json_extract(data,'$.student_id') = $1", [id]);
-      await db.execute("DELETE FROM discipline_events WHERE json_extract(data,'$.student_id') = $1", [id]);
-      for (const d of duty) {
-        if (d.student_ids.includes(id)) {
-          await db.execute('UPDATE duty_records SET data = $1 WHERE id = $2', [
-            toRow({ ...d, student_ids: d.student_ids.filter(s => s !== id) }),
-            d.id
-          ]);
-        }
+    await db.execute('DELETE FROM students WHERE id = $1', [id]);
+    await db.execute("DELETE FROM enrollments WHERE json_extract(data,'$.student_id') = $1", [id]);
+    await db.execute("DELETE FROM attendance WHERE json_extract(data,'$.student_id') = $1", [id]);
+    await db.execute("DELETE FROM scores WHERE json_extract(data,'$.student_id') = $1", [id]);
+    await db.execute("DELETE FROM discipline_events WHERE json_extract(data,'$.student_id') = $1", [id]);
+    for (const d of duty) {
+      if (d.student_ids.includes(id)) {
+        await db.execute('UPDATE duty_records SET data = $1 WHERE id = $2', [
+          toRow({ ...d, student_ids: d.student_ids.filter(s => s !== id) }),
+          d.id
+        ]);
       }
-      await db.execute('COMMIT');
-    } catch (err) {
-      await db.execute('ROLLBACK');
-      throw err;
     }
-    return { enrollments: enr.length, attendance: att.length, scores: sco.length, discipline: dis.length };
+    return counts;
   }
 
   async importStudents(
@@ -322,9 +289,7 @@ export class SqliteClassRepo implements ClassRepo {
   ): Promise<ImportResult> {
     const db = await this.load();
     const result: ImportResult = { created: 0, updated: 0, skipped: 0 };
-    const existing = (
-      await db.select<{ data: string; student_no: string }[]>('SELECT data, student_no FROM students')
-    ).map(r => fromRow<Student>(r));
+    const existing = (await db.select<{ data: string }[]>('SELECT data FROM students')).map(fromRow<Student>);
     const byNo = new Map(existing.map(s => [s.student_no, s]));
     const semesterEnrollments = (
       await db.select<{ data: string }[]>(
@@ -334,49 +299,42 @@ export class SqliteClassRepo implements ClassRepo {
     ).map(fromRow<Enrollment>);
     const enrolledStudentIds = new Set(semesterEnrollments.map(e => e.student_id));
 
-    await db.execute('BEGIN');
-    try {
-      for (const input of rows) {
-        const normalized = normalizeStudentInput(input);
-        const prev = byNo.get(normalized.student_no);
-        if (!prev) {
-          const student: Student = { id: genId(), created_at: nowISO(), updated_at: nowISO(), ...normalized };
-          await db.execute('INSERT INTO students (id, data, student_no) VALUES ($1, $2, $3)', [
-            student.id,
-            toRow(student),
-            student.student_no
-          ]);
-          byNo.set(student.student_no, student);
-          result.created += 1;
-          await db.execute('INSERT INTO enrollments (id, data) VALUES ($1, $2)', [
-            genId(),
-            toRow({ id: genId(), semester_id: semesterId, student_id: student.id, status: 'active' })
-          ]);
-          continue;
-        }
-        if (strategy === 'skip') {
-          result.skipped += 1;
-        } else {
-          const next = { ...prev, ...normalized, id: prev.id, created_at: prev.created_at, updated_at: nowISO() };
-          await db.execute('UPDATE students SET data = $1, student_no = $2 WHERE id = $3', [
-            toRow(next),
-            next.student_no,
-            prev.id
-          ]);
-          result.updated += 1;
-        }
-        if (!enrolledStudentIds.has(prev.id)) {
-          await db.execute('INSERT INTO enrollments (id, data) VALUES ($1, $2)', [
-            genId(),
-            toRow({ id: genId(), semester_id: semesterId, student_id: prev.id, status: 'active' })
-          ]);
-          enrolledStudentIds.add(prev.id);
-        }
+    for (const input of rows) {
+      const normalized = normalizeStudentInput(input);
+      const prev = byNo.get(normalized.student_no);
+      if (!prev) {
+        const student: Student = { id: genId(), created_at: nowISO(), updated_at: nowISO(), ...normalized };
+        await db.execute('INSERT INTO students (id, data, student_no) VALUES ($1, $2, $3)', [
+          student.id,
+          toRow(student),
+          student.student_no
+        ]);
+        byNo.set(student.student_no, student);
+        result.created += 1;
+        await db.execute('INSERT INTO enrollments (id, data) VALUES ($1, $2)', [
+          genId(),
+          toRow({ id: genId(), semester_id: semesterId, student_id: student.id, status: 'active' })
+        ]);
+        continue;
       }
-      await db.execute('COMMIT');
-    } catch (err) {
-      await db.execute('ROLLBACK');
-      throw err;
+      if (strategy === 'skip') {
+        result.skipped += 1;
+      } else {
+        const next = { ...prev, ...normalized, id: prev.id, created_at: prev.created_at, updated_at: nowISO() };
+        await db.execute('UPDATE students SET data = $1, student_no = $2 WHERE id = $3', [
+          toRow(next),
+          next.student_no,
+          prev.id
+        ]);
+        result.updated += 1;
+      }
+      if (!enrolledStudentIds.has(prev.id)) {
+        await db.execute('INSERT INTO enrollments (id, data) VALUES ($1, $2)', [
+          genId(),
+          toRow({ id: genId(), semester_id: semesterId, student_id: prev.id, status: 'active' })
+        ]);
+        enrolledStudentIds.add(prev.id);
+      }
     }
     return result;
   }
@@ -402,12 +360,8 @@ export class SqliteClassRepo implements ClassRepo {
 
   private async assertStudentNoUnique(studentNo: string, excludeId?: string): Promise<void> {
     const db = await this.load();
-    const rows = await db.select<{ id: string; data: string }[]>(
-      'SELECT id, data FROM students WHERE student_no = $1',
-      [studentNo]
-    );
-    const dup = rows.find(r => r.id !== excludeId);
-    if (dup) throw new Error(`学号已存在: ${studentNo}`);
+    const rows = await db.select<{ id: string }[]>('SELECT id FROM students WHERE student_no = $1', [studentNo]);
+    if (rows.some(r => r.id !== excludeId)) throw new Error(`学号已存在: ${studentNo}`);
   }
 
   async listEnrollments(semesterId: string): Promise<Enrollment[]> {
@@ -442,30 +396,22 @@ export class SqliteClassRepo implements ClassRepo {
     const db = await this.load();
     const semRows = await db.select<{ data: string }[]>('SELECT data FROM semesters WHERE id = $1', [semesterId]);
     if (!semRows[0]) throw new Error(`学期不存在: ${semesterId}`);
-    // 上课日校验在 UI 层完成（依赖教学日历推导）；此处信任调用方
-    await db.execute('BEGIN');
-    try {
-      await db.execute(
-        "DELETE FROM attendance WHERE json_extract(data,'$.semester_id') = $1 AND json_extract(data,'$.date') = $2",
-        [semesterId, date]
-      );
-      const records = rows
-        .filter(r => r.status !== 'present')
-        .map(input => ({
-          id: genId(),
-          semester_id: semesterId,
-          student_id: input.student_id,
-          date,
-          status: input.status,
-          ...(input.remark ? { remark: input.remark } : {})
-        }));
-      for (const r of records) {
-        await db.execute('INSERT INTO attendance (id, data) VALUES ($1, $2)', [r.id, toRow(r)]);
-      }
-      await db.execute('COMMIT');
-    } catch (err) {
-      await db.execute('ROLLBACK');
-      throw err;
+    await db.execute(
+      "DELETE FROM attendance WHERE json_extract(data,'$.semester_id') = $1 AND json_extract(data,'$.date') = $2",
+      [semesterId, date]
+    );
+    const records = rows
+      .filter(r => r.status !== 'present')
+      .map(input => ({
+        id: genId(),
+        semester_id: semesterId,
+        student_id: input.student_id,
+        date,
+        status: input.status,
+        ...(input.remark ? { remark: input.remark } : {})
+      }));
+    for (const r of records) {
+      await db.execute('INSERT INTO attendance (id, data) VALUES ($1, $2)', [r.id, toRow(r)]);
     }
   }
 
@@ -541,19 +487,9 @@ export class SqliteClassRepo implements ClassRepo {
     if (rows[0]) {
       await this.assertWritable(db, fromRow<Exam>(rows[0]).semester_id);
     }
-    const sco = await db.select<{ data: string }[]>(
-      "SELECT data FROM scores WHERE json_extract(data,'$.exam_id') = $1",
-      [id]
-    );
-    await db.execute('BEGIN');
-    try {
-      await db.execute("DELETE FROM scores WHERE json_extract(data,'$.exam_id') = $1", [id]);
-      await db.execute('DELETE FROM exams WHERE id = $1', [id]);
-      await db.execute('COMMIT');
-    } catch (err) {
-      await db.execute('ROLLBACK');
-      throw err;
-    }
+    const sco = await this.getScoresByExam(id);
+    await db.execute("DELETE FROM scores WHERE json_extract(data,'$.exam_id') = $1", [id]);
+    await db.execute('DELETE FROM exams WHERE id = $1', [id]);
     return { scores: sco.length };
   }
 
@@ -572,35 +508,28 @@ export class SqliteClassRepo implements ClassRepo {
     if (!examRows[0]) throw new Error(`考试不存在: ${examId}`);
     const exam = fromRow<Exam>(examRows[0]);
     await this.assertWritable(db, exam.semester_id);
-    await db.execute('BEGIN');
-    try {
-      await db.execute(
-        "DELETE FROM scores WHERE json_extract(data,'$.exam_id') = $1 AND json_extract(data,'$.subject') = $2",
-        [examId, subject]
-      );
-      const now = nowISO();
-      for (const r of rows) {
-        const score: Score = {
-          id: genId(),
-          exam_id: examId,
-          student_id: r.student_id,
-          semester_id: exam.semester_id,
-          subject,
-          score: r.score,
-          updated_at: now
-        };
-        await db.execute('INSERT INTO scores (id, data) VALUES ($1, $2)', [score.id, toRow(score)]);
-      }
-      if (!exam.subjects.includes(subject)) {
-        await db.execute('UPDATE exams SET data = $1 WHERE id = $2', [
-          toRow({ ...exam, subjects: [...exam.subjects, subject] }),
-          examId
-        ]);
-      }
-      await db.execute('COMMIT');
-    } catch (err) {
-      await db.execute('ROLLBACK');
-      throw err;
+    await db.execute(
+      "DELETE FROM scores WHERE json_extract(data,'$.exam_id') = $1 AND json_extract(data,'$.subject') = $2",
+      [examId, subject]
+    );
+    const now = nowISO();
+    for (const r of rows) {
+      const score: Score = {
+        id: genId(),
+        exam_id: examId,
+        student_id: r.student_id,
+        semester_id: exam.semester_id,
+        subject,
+        score: r.score,
+        updated_at: now
+      };
+      await db.execute('INSERT INTO scores (id, data) VALUES ($1, $2)', [score.id, toRow(score)]);
+    }
+    if (!exam.subjects.includes(subject)) {
+      await db.execute('UPDATE exams SET data = $1 WHERE id = $2', [
+        toRow({ ...exam, subjects: [...exam.subjects, subject] }),
+        examId
+      ]);
     }
   }
 
@@ -629,21 +558,14 @@ export class SqliteClassRepo implements ClassRepo {
     const exam = fromRow<Exam>(examRows[0]);
     await this.assertWritable(db, exam.semester_id);
     const prev = await this.getScoresBySubject(examId, subject);
-    await db.execute('BEGIN');
-    try {
-      await db.execute(
-        "DELETE FROM scores WHERE json_extract(data,'$.exam_id') = $1 AND json_extract(data,'$.subject') = $2",
-        [examId, subject]
-      );
-      await db.execute('UPDATE exams SET data = $1 WHERE id = $2', [
-        toRow({ ...exam, subjects: exam.subjects.filter(s => s !== subject) }),
-        examId
-      ]);
-      await db.execute('COMMIT');
-    } catch (err) {
-      await db.execute('ROLLBACK');
-      throw err;
-    }
+    await db.execute(
+      "DELETE FROM scores WHERE json_extract(data,'$.exam_id') = $1 AND json_extract(data,'$.subject') = $2",
+      [examId, subject]
+    );
+    await db.execute('UPDATE exams SET data = $1 WHERE id = $2', [
+      toRow({ ...exam, subjects: exam.subjects.filter(s => s !== subject) }),
+      examId
+    ]);
     return prev.length;
   }
 
@@ -681,15 +603,8 @@ export class SqliteClassRepo implements ClassRepo {
       description: input.description.trim(),
       created_at: now
     }));
-    await db.execute('BEGIN');
-    try {
-      for (const e of events) {
-        await db.execute('INSERT INTO discipline_events (id, data) VALUES ($1, $2)', [e.id, toRow(e)]);
-      }
-      await db.execute('COMMIT');
-    } catch (err) {
-      await db.execute('ROLLBACK');
-      throw err;
+    for (const e of events) {
+      await db.execute('INSERT INTO discipline_events (id, data) VALUES ($1, $2)', [e.id, toRow(e)]);
     }
     return events.length;
   }
@@ -739,18 +654,11 @@ export class SqliteClassRepo implements ClassRepo {
       ...(input.group_name ? { group_name: input.group_name } : {}),
       ...(input.remark ? { remark: input.remark } : {})
     };
-    await db.execute('BEGIN');
-    try {
-      await db.execute(
-        "DELETE FROM duty_records WHERE json_extract(data,'$.semester_id') = $1 AND json_extract(data,'$.date') = $2 AND json_extract(data,'$.area') = $3",
-        [semesterId, input.date, input.area]
-      );
-      await db.execute('INSERT INTO duty_records (id, data) VALUES ($1, $2)', [record.id, toRow(record)]);
-      await db.execute('COMMIT');
-    } catch (err) {
-      await db.execute('ROLLBACK');
-      throw err;
-    }
+    await db.execute(
+      "DELETE FROM duty_records WHERE json_extract(data,'$.semester_id') = $1 AND json_extract(data,'$.date') = $2 AND json_extract(data,'$.area') = $3",
+      [semesterId, input.date, input.area]
+    );
+    await db.execute('INSERT INTO duty_records (id, data) VALUES ($1, $2)', [record.id, toRow(record)]);
     return record;
   }
 
@@ -889,41 +797,34 @@ export class SqliteClassRepo implements ClassRepo {
         ]);
       }
     };
-    await db.execute('BEGIN');
-    try {
-      for (const t of [
-        'semesters',
-        'students',
-        'enrollments',
-        'attendance',
-        'exams',
-        'scores',
-        'discipline_events',
-        'duty_records',
-        'documents',
-        'settings'
-      ]) {
-        await db.execute(`DELETE FROM ${t}`);
-      }
-      await put('semesters', data.semesters);
-      await put('students', data.students);
-      await put('enrollments', data.enrollments);
-      await put('attendance', data.attendance);
-      await put('exams', data.exams);
-      await put('scores', data.scores);
-      await put('discipline_events', data.discipline_events);
-      await put('duty_records', data.duty_records);
-      await put('documents', data.documents);
-      for (const [key, value] of Object.entries(data.settings)) {
-        await db.execute(
-          'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2',
-          [key, JSON.stringify(value)]
-        );
-      }
-      await db.execute('COMMIT');
-    } catch (err) {
-      await db.execute('ROLLBACK');
-      throw err;
+    for (const t of [
+      'semesters',
+      'students',
+      'enrollments',
+      'attendance',
+      'exams',
+      'scores',
+      'discipline_events',
+      'duty_records',
+      'documents',
+      'settings'
+    ]) {
+      await db.execute(`DELETE FROM ${t}`);
+    }
+    await put('semesters', data.semesters);
+    await put('students', data.students);
+    await put('enrollments', data.enrollments);
+    await put('attendance', data.attendance);
+    await put('exams', data.exams);
+    await put('scores', data.scores);
+    await put('discipline_events', data.discipline_events);
+    await put('duty_records', data.duty_records);
+    await put('documents', data.documents);
+    for (const [key, value] of Object.entries(data.settings)) {
+      await db.execute('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2', [
+        key,
+        JSON.stringify(value)
+      ]);
     }
   }
 

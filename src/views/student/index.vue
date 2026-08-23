@@ -33,9 +33,9 @@ const importShow = ref(false);
 const menuRow = ref<StudentWithEnrollment | null>(null);
 const rowMenuRef = ref<InstanceType<typeof ContextMenu> | null>(null);
 const rowMenuOptions = [
-  { label: '详情', key: 'detail' },
-  { label: '编辑', key: 'edit' },
-  { label: '删除', key: 'delete' }
+  { label: '详情', key: 'detail', title: '查看 360 视图（考勤/成绩/德育/值日）' },
+  { label: '编辑', key: 'edit', title: '修改学生资料' },
+  { label: '删除', key: 'delete', title: '删除学生及全部历史记录', props: { class: 'text-error' } }
 ];
 
 function handleRowMenu(key: string | number) {
@@ -137,12 +137,16 @@ function handleDetail(row: StudentWithEnrollment) {
   return routerPushByKey('student-detail', { params: { id: row.id } });
 }
 
-async function handleSave(input: StudentInput) {
+async function handleSave(enrollmentStatus: 'active' | 'transferred_out', input: StudentInput) {
   if (!semesterStore.activeSemesterId) return;
   saving.value = true;
   try {
     if (editingStudent.value) {
       await studentStore.updateStudent(editingStudent.value.id, input, semesterStore.activeSemesterId);
+      if (enrollmentStatus && enrollmentStatus !== editingStudent.value.enrollment?.status) {
+        await repo.updateEnrollment(editingStudent.value.enrollment?.id ?? '', { status: enrollmentStatus });
+        await refresh();
+      }
       window.$message?.success('已保存');
     } else {
       await studentStore.createStudent(input, semesterStore.activeSemesterId);

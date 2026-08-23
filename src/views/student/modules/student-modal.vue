@@ -16,10 +16,12 @@ const props = defineProps<{
   saving?: boolean;
 }>();
 
+const enrollmentStatus = ref<'active' | 'transferred_out'>('active');
+
 const emit = defineEmits<{
   'update:show': [value: boolean];
-  /** 提交表单（值为 DTO 入参） */
-  save: [input: StudentInput];
+  /** 提交表单（值为 DTO 入参 + 名册状态） */
+  save: [enrollmentStatus: 'active' | 'transferred_out', input: StudentInput];
 }>();
 
 const formRef = ref<FormInst | null>(null);
@@ -73,6 +75,7 @@ watch(
       address: src?.address ?? '',
       notes: src?.notes ?? ''
     });
+    enrollmentStatus.value = src?.enrollment?.status ?? 'active';
     formRef.value?.restoreValidation();
   }
 );
@@ -83,7 +86,7 @@ function handleClose() {
 
 async function handleSave() {
   await formRef.value?.validate();
-  emit('save', {
+  emit('save', enrollmentStatus.value, {
     name: form.name,
     student_no: form.student_no,
     gender: form.gender,
@@ -138,6 +141,12 @@ async function handleSave() {
       </NFormItem>
       <NFormItem label="住址" path="address">
         <NInput v-model:value="form.address" placeholder="选填" />
+      </NFormItem>
+      <NFormItem v-if="isEdit" label="状态">
+        <NRadioGroup v-model:value="enrollmentStatus">
+          <NRadio value="active">在读</NRadio>
+          <NRadio value="transferred_out">转出</NRadio>
+        </NRadioGroup>
       </NFormItem>
       <NFormItem label="备注" path="notes">
         <NInput v-model:value="form.notes" type="textarea" :rows="2" placeholder="选填" />
